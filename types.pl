@@ -1,3 +1,13 @@
+
+isType(int).
+isType(flt).
+isType(union(S,T)) :- isType(S), isType(T).
+isType(arrow(S,T)) :- isType(S), isType(T).
+
+allowed(T) :- isType(T).
+allowed(erriplusrightfloat).
+allowed(erriplusleftfloat).
+
 type(_, intConst, int).
 type(_, fltConst, flt).
 type(TEnv, if(Test, Then, Else), Tau) :-
@@ -19,7 +29,8 @@ type(TEnv, app(Fun, Arg), T2) :-
 type(TEnv, op(Op, E1, E2), T) :-
   type(TEnv, E1, T1),
   type(TEnv, E2, T2),
-  delta(Op, T1, T2, T).
+  delta(Op, T1, T2, T),
+  allowed(T).
 
 %type(TEnv, Expr, T) :-
 %  type(TEnv, Expr, S),
