@@ -32,6 +32,8 @@ type(TEnv, op(Op, E1, E2), T) :-
   delta(Op, T1, T2, T),
   allowed(T).
 
+% No subsumption for now.  It causes some issues with
+% inferring crazy unbounded unions.
 %type(TEnv, Expr, T) :-
 %  type(TEnv, Expr, S),
 %  subtype(S, T).
@@ -42,11 +44,14 @@ subtype(union(S, T), U) :- (subtype(S, U), subtype(T, U)).
 subtype(arrow(S1, T1), arrow(S2, T2)) :-
   (subtype(S2, S1), subtype(T1, T2)).
 
+% Delta distributes over unions using subtyping
 delta(Op, union(S1, S2), T2, TResult) :-
   delta(Op, S1, T2, TS1),
   delta(Op, S2, T2, TS2),
   subtype(TS1, TResult),
   subtype(TS2, TResult).
+
+%TODO: division
 
 delta(plus, flt, flt, flt).
 delta(plus, int, flt, flt).
@@ -61,6 +66,4 @@ delta(iplus, int, flt, erriplusrightfloat).
 delta(iplus, flt, _, erriplusleftfloat).
 delta(iplus, arrow(_, _), _, errlambdaleftiplus).
 delta(iplus, int, arrow(_, _), errlambdarightiplus).
-
-
 
