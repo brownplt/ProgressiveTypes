@@ -13,6 +13,7 @@ type(_, nzIntConst, nzInt).
 type(_, nzFltConst, nzniFlt).
 type(_, zeroConst, zero).
 type(TEnv, if(Test, Then, Else), Tau) :-
+  wftype(Tau),
   type(TEnv,Test,int),
   type(TEnv,Then,Tau),
   type(TEnv,Else,Tau).
@@ -22,9 +23,13 @@ type([bind(_,_)|TEnvRest], var(V), T) :-
   type(TEnvRest, var(V), T).
 
 type(TEnv, fun(Arg, Body), arrow(T1, T2)) :-
+  wftype(T1),
+  wftype(T2),
   type([bind(Arg, T1)|TEnv], Body, T2).
 
 type(TEnv, app(Fun, Arg), T2) :-
+  wftype(T1),
+  wftype(T2),
   type(TEnv, Fun, arrow(T1, T2)),
   type(TEnv, Arg, T1).
 
@@ -40,10 +45,30 @@ type(TEnv, op(Op, E1, E2), T) :-
 %  type(TEnv, Expr, S),
 %  subtype(S, T).
 
-%canonical(T, union(U, T)) :- subtype(canonical(U, T).
-%canonical(U, union(U, T)) :- subtype(T, U).
-%canonical(S, union(U, T)) :-
-  
+wftype(T) :- safe_canonical(T,T).
+
+safe_canonical(S, T) :-
+  call_with_depth_limit(canonical(S, T), 3, R),
+  not(=(R, depth_limit_exceeded)).
+
+canonical(nzInt, nzInt).
+canonical(nzniFlt, nzniFlt).
+canonical(zero, zero).
+
+canonical(union(S1, T1), union(S2, T2)) :-
+  canonical(S1, S2), canonical(T1, T2),
+  not(subtype(S1, T1)), not(subtype(T1, S1)).
+
+canonical(Tc, union(S, T)) :- 
+  canonical(Sc, S),
+  canonical(Tc, T),
+  subtype(Sc, Tc).
+
+canonical(Sc, union(S, T)) :- 
+  canonical(Sc, S),
+  canonical(Tc, T),
+  subtype(Tc, Sc).
+
 canonical(arrow(S1, T1), arrow(S2, T2)) :-
   canonical(S1, S2), canonical(T1, T2).
 
@@ -88,7 +113,7 @@ delta(iplus, nzInt, nzInt, nzInt).
 
 delta(iplus, arrow(_, _), _, errIPlusLambdaLeft).
 delta(iplus, T, arrow(_, _), errIPlusLambdaRight) :-
-  subtype(T, union(nzInt, zero).
+  subtype(T, union(nzInt, zero)).
 
 delta(div, zero, zero, errDivByZeroWithZeroNumerator).
 delta(div, zero, nzniFlt, zero).
@@ -102,6 +127,6 @@ delta(div, nzInt, nzInt, union(nzniFlt, nzInt)).
 
 delta(div, arrow(_, _), _, errIPlusLambdaLeft).
 delta(div, T, arrow(_, _), errIPlusLambdaRight) :-
-  subtype(T, union(nzInt, nzniFlt, zero).
+  subtype(T, union(nzInt, nzniFlt, zero)).
 
 
