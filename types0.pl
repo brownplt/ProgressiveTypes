@@ -8,6 +8,8 @@ isType(arrow(S,T)) :- isType(S), isType(T).
 allowed(T) :- isType(T).
 allowed(erriplusrightfloat).
 allowed(erriplusleftfloat).
+allowed(errDivByZeroWithIntNumerator).
+allowed(errDivByZeroWithFloatNumerator).
 
 type(_, nzIntConst, nzInt).
 type(_, nzFltConst, nzniFlt).
@@ -114,7 +116,7 @@ delta(div, zero, nzInt, zero).
 delta(div, nzniFlt, zero, errDivByZeroWithFloatNumerator).
 delta(div, nzniFlt, nzniFlt, union(nzInt, nzniFlt)).
 delta(div, nzniFlt, nzInt, nzniFlt).
-delta(div, nzInt, zero, errDivByZeroWithFloatNumerator).
+delta(div, nzInt, zero, errDivByZeroWithIntNumerator).
 delta(div, nzInt, nzniFlt, union(nzniFlt, nzInt)).
 delta(div, nzInt, nzInt, union(nzniFlt, nzInt)).
 

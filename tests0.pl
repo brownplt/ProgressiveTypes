@@ -37,4 +37,8 @@ type([], fun(x, union(nzInt, nzniFlt),
 
 type([], fun(x, T, var(x)), S).
 
- 
+
+type([], fun(x, union(nzInt, nzniFlt), op(div, var(x), zeroConst)), T).
+
+% type([(x, arrow(nzInt, bottom)|[]], app(var(x), nzIntConst), bottom, errunion(... some errors ...)))
+
