@@ -13,23 +13,22 @@ type(_, nzIntConst, nzInt).
 type(_, nzFltConst, nzniFlt).
 type(_, zeroConst, zero).
 type(TEnv, if(Test, Then, Else), Tau) :-
-  wftype(Tau),
   type(TEnv,Test,int),
   type(TEnv,Then,Tau),
   type(TEnv,Else,Tau).
+
+type(Env, subsume(E, T), T) :-
+  type(Env, E, S),
+  subtype(S, T).
 
 type([bind(V,T)|_], var(V), T).
 type([bind(_,_)|TEnvRest], var(V), T) :-
   type(TEnvRest, var(V), T).
 
-type(TEnv, fun(Arg, Body), arrow(T1, T2)) :-
-  wftype(T1),
-  wftype(T2),
-  type([bind(Arg, T1)|TEnv], Body, T2).
+type(TEnv, fun(Arg, ArgTyp, Body), arrow(ArgTyp, T2)) :-
+  type([bind(Arg, ArgTyp)|TEnv], Body, T2).
 
 type(TEnv, app(Fun, Arg), T2) :-
-  wftype(T1),
-  wftype(T2),
   type(TEnv, Fun, arrow(T1, T2)),
   type(TEnv, Arg, T1).
 
@@ -39,17 +38,11 @@ type(TEnv, op(Op, E1, E2), T) :-
   delta(Op, T1, T2, T),
   allowed(T).
 
-% No subsumption for now.  It causes some issues with
-% inferring crazy unbounded unions.
-%type(TEnv, Expr, T) :-
-%  type(TEnv, Expr, S),
-%  subtype(S, T).
-
 wftype(T) :- safe_canonical(T,T).
 
-safe_canonical(S, T) :-
-  call_with_depth_limit(canonical(S, T), 3, R),
-  not(=(R, depth_limit_exceeded)).
+safe_canonical(S, T) :- canonical(S,T).
+%  call_with_depth_limit(canonical(S, T), 3, R),
+%  not(=(R, depth_limit_exceeded)).
 
 canonical(nzInt, nzInt).
 canonical(nzniFlt, nzniFlt).
@@ -78,7 +71,7 @@ subtype(union(S, T), U) :- (subtype(S, U), subtype(T, U)).
 subtype(arrow(S1, T1), arrow(S2, T2)) :-
   (subtype(S2, S1), subtype(T1, T2)).
 
-% Delta distributes over unions using subtyping
+% Delta distributes over unions
 delta(Op, union(S1, S2), T2, union(TS1, TS2)) :-
   delta(Op, S1, T2, TS1),
   delta(Op, S2, T2, TS2).

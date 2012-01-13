@@ -27,12 +27,14 @@ type([], op(plus, nzFltConst, zeroConst), T).
 
 type([], op(iplus, zeroConst, nzIntConst), T).
 
-type([], fun(x, op(div, nzIntConst, var(x))), T).
+type([], fun(x, union(nzInt, nzniFlt), op(div, nzIntConst, var(x))), T).
 
-type([], fun(x, op(div, nzIntConst, var(x))), arrow(T1, T2)).
+type([], fun(x, union(nzInt, nzniFlt), op(div, nzIntConst, var(x))), arrow(T1, T2)).
 
-type([], fun(x, op(div, nzIntConst, var(x))), arrow(union(T11, T12), T2)).
+type([], fun(x, union(nzInt, nzniFlt),
+         op(div, nzIntConst, var(x))),
+         arrow(union(T11, T12), T2)).
 
-type([], fun(x, var(x)), arrow(union(T11, T12), T2)).
+type([], fun(x, T, var(x)), S).
 
  
