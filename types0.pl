@@ -15,7 +15,7 @@ type(_, nzIntConst, nzInt).
 type(_, nzFltConst, nzniFlt).
 type(_, zeroConst, zero).
 type(TEnv, if(Test, Then, Else), Tau) :-
-  type(TEnv,Test,int),
+  type(TEnv,Test,nzInt),
   type(TEnv,Then,Tau),
   type(TEnv,Else,Tau).
 
