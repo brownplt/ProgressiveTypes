@@ -1,5 +1,4 @@
 
-
 wellFormedProg([Cd1|Rest], Expr):-
   wellFormedClass(Cd1),
   wellFormedProg(Rest, Expr).
@@ -32,3 +31,20 @@ wellFormedExpr(invoke(ObjExpr, MethodName, ArgExpr)):-
   wellFormedExpr(ObjExpr).
 
 wellFormedExpr(var(VarName)).
+
+classListTreeCheck(List, Outlist):-
+  classListTreeCheck2(List, [parent(object, object)], Outlist).
+
+classListTreeCheck2([], Classes, Outlist):-Outlist=Classes.
+
+% a parent is:
+% parent(childClassName, parentClassName)
+
+
+% classListTreeCheck2 : List(class), List(parent), List(parent)
+classListTreeCheck2([class(CName, PName, _)|Rest], Classes, Outlist):-
+  member(parent(PName, _), Classes),
+  classListTreeCheck2(Rest, [parent(CName, PName)|Classes], Outlist).
+
+
+

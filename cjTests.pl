@@ -20,3 +20,18 @@ assert(isAnExpr(invoke(new(aClass), aMethod, new(aClass)))).
 isAnExpr(Y), wellFormedExpr(Y).
 
 isAClass(X), isAnExpr(Y), wellFormedProg([X|[]], Y).
+
+write('Starting cyclic output').
+
+assert(parent(class(parentClass, childClass, []))).
+
+assert(child(class(childClass, parentClass, []))).
+
+parent(P), child(C), classListTreeCheck([P, C], Outlist).	
+
+assert(classA(class(a, object, []))).
+
+assert(classB(class(b, a, []))).
+
+classA(A), classB(B), classListTreeCheck([A, B], Outlist2).
+
