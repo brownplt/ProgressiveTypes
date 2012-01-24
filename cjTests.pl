@@ -54,3 +54,44 @@ M = [signature(aClass, getb, arg(b, bClass), bClass),
      signature(bClass, geta, arg(a, aClass), aClass)].
 
 
+write('\nGetting the right signature').
+
+assert(parentWithFoo(class(parentClass, object, [
+    method(foo, arg(p, parentClass), new(parentClass), parentClass)
+  ]))).
+
+assert(goodChildWithFoo(class(goodChild, parentClass, [
+    method(foo, arg(p, parentClass), var(p), parentClass)
+  ]))).
+
+assert(badChildWithFoo(class(badChild, parentClass, [
+    method(foo, arg(p, badChild), var(p), badChild)
+  ]))).
+
+assert(childWithoutFoo(class(noFooChild, parentClass, [
+    method(noop, arg(p, parentClass), new(noFooChild), noFooChild)
+  ]))).
+
+write('\n\nShould have interesting results for sig:').
+
+parentWithFoo(P), goodChildWithFoo(C),
+classListTreeCheck([P,C], Parents),
+classesMethodDescriptions([P,C], Methods),
+getSignature(Parents, goodChild, foo, Methods, Sig).
+
+write('\n\nShould have interesting results for methods:').
+
+parentWithFoo(P), goodChildWithFoo(C),
+classesMethodDescriptions([P,C], Methods).
+
+%parentWithFoo(P), goodChildWithFoo(C), checkInheritance([P,C]).
+
+write('Next should fail:').
+
+%parentWithFoo(P), badChildWithFoo(C), checkInheritance([P,C]).
+
+%parentWithFoo(P), childWithoutFoo(C), checkInheritance([P,C]).
+
+
+
+
