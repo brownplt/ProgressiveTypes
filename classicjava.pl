@@ -7,14 +7,8 @@ wellFormedProg([Cd1|Rest], Expr):-
 wellFormedProg([], Expr):-
   wellFormedExpr(Expr).
 
-wellFormedClass(class(Name, Parent, Fields, Methods)):-
-  wellFormedFields(Fields),
+wellFormedClass(class(Name, Parent, Methods)):-
   wellFormedMethods(Methods).
-
-wellFormedFields([field(Name, Class)|Rest]):-
-  wellFormedFields(Rest).
-
-wellFormedFields([]).
 
 wellFormedMethods([Method1|Rest]):-
   wellFormedMethod(Method1),

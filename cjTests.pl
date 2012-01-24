@@ -1,16 +1,16 @@
 wellFormedExpr(new(ponies)).
 
-wellFormedClass(class(billy, bilysDad, [], [])).
+wellFormedClass(class(billy, bilysDad, [])).
 
 wellFormedArg(arg(argName, aClass)).
 
-wellFormedClass(class(aClass, aParent, [], [method(aMethod, 
+wellFormedClass(class(aClass, aParent, [method(aMethod, 
 			arg(argName, aClass), var(aClass), aClass)|[]])).
 
 wellFormedMethod(method(aMethod, 
 			arg(argName, aClass), var(aClass), aClass)).
 
-assert(isAClass(class(aClass, aParent, [], [method(aMethod, 
+assert(isAClass(class(aClass, aParent, [method(aMethod, 
 			arg(argName, aClass), var(aClass), aClass)|[]]))).
 
 isAClass(X), wellFormedClass(X).
