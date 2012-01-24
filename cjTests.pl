@@ -35,3 +35,22 @@ assert(classB(class(b, a, []))).
 
 classA(A), classB(B), classListTreeCheck([A, B], Outlist2).
 
+
+write('\nMethod list tests').
+
+assert(methodExample1(class(aClass, object, [
+    method(getb, arg(b, bClass), var(b), bClass)
+  ]))).
+
+methodExample1(C), classesMethodDescriptions([C], M),
+M = [signature(aClass, getb, arg(b, bClass), bClass)].
+
+assert(methodExample2(class(bClass, object, [
+    method(geta, arg(a, aClass), var(a), aClass)
+  ]))).
+
+methodExample1(A), methodExample2(B), classesMethodDescriptions([A,B],M),
+M = [signature(aClass, getb, arg(b, bClass), bClass),
+     signature(bClass, geta, arg(a, aClass), aClass)].
+
+

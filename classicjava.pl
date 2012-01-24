@@ -40,11 +40,19 @@ classListTreeCheck2([], Classes, Outlist):-Outlist=Classes.
 % a parent is:
 % parent(childClassName, parentClassName)
 
-
 % classListTreeCheck2 : List(class), List(parent), List(parent)
 classListTreeCheck2([class(CName, PName, _)|Rest], Classes, Outlist):-
   member(parent(PName, _), Classes),
   classListTreeCheck2(Rest, [parent(CName, PName)|Classes], Outlist).
 
+classesMethodDescriptions([], Methods) :- Methods = [].
+classesMethodDescriptions([class(ClassName, _, CMethods)|Rest], Methods) :-
+  classMethodDescriptions(ClassName, CMethods, TheseMethods),
+  append([TheseMethods, RestMethods], Methods),
+  classesMethodDescriptions(Rest, RestMethods).
 
+classMethodDescriptions(_, [], Methods) :- Methods = [].
+classMethodDescriptions(ClassName, [method(Name, Arg, _, Return)|Rest], Methods) :-
+  Methods = [signature(ClassName, Name, Arg, Return)|RestMethods],
+  classMethodDescriptions(ClassName, Rest, RestMethods).
 
