@@ -21,11 +21,11 @@ isAnExpr(Y), wellFormedExpr(Y).
 
 isAClass(X), isAnExpr(Y), wellFormedProg([X|[]], Y).
 
-write('Starting cyclic output').
-
 assert(parent(class(parentClass, childClass, []))).
 
 assert(child(class(childClass, parentClass, []))).
+
+write('Starting cyclic output, next should fail').
 
 parent(P), child(C), classListTreeCheck([P, C], Outlist).	
 
@@ -33,8 +33,9 @@ assert(classA(class(a, object, []))).
 
 assert(classB(class(b, a, []))).
 
-classA(A), classB(B), classListTreeCheck([A, B], Outlist2).
+write('Starting good tree output, next should succeed.').
 
+classA(A), classB(B), classListTreeCheck([A, B], Outlist2).
 
 write('\nMethod list tests').
 
@@ -135,4 +136,19 @@ write('Should fail when grandchild is bad:').
 parentWithFoo(P8), noMethodsChild(C8), badFooGrandchild(GC8),
 checkInheritance([P8, C8, GC8]).
 
+write('Should succeed with T=parentClass when invoked correctly:').
+
+parentWithFoo(P9), typecheck([P9],
+  invoke(new(parentClass),foo,new(parentClass)), T).
+
+write('Should fail when invoked incorrectly:').
+
+parentWithFoo(P10), typecheck([P10],
+  invoke(new(parentClass),foo,new(object)), T).
+
+write('End.').
+
+parentWithFoo(P11), classesMethodDescriptions([P11],D),
+classListTreeCheck([P11], Par),
+getSignature(Par, parentClass, foo, D, Sig).
 

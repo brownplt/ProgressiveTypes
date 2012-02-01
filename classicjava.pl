@@ -33,7 +33,7 @@ wellFormedExpr(invoke(ObjExpr, MethodName, ArgExpr)):-
 wellFormedExpr(var(VarName)).
 
 classListTreeCheck(List, Outlist):-
-  classListTreeCheck2(List, [parent(object, object)], Outlist).
+  classListTreeCheck2(List, [], Outlist).
 
 classListTreeCheck2([], Classes, Outlist) :- Outlist=Classes.
 
@@ -44,6 +44,9 @@ classListTreeCheck2([], Classes, Outlist) :- Outlist=Classes.
 classListTreeCheck2([class(CName, PName, _)|Rest], Classes, Outlist):-
   member(parent(PName, _), Classes),
   classListTreeCheck2(Rest, [parent(CName, PName)|Classes], Outlist).
+
+classListTreeCheck2([class(CName, object, _)|Rest], Classes, Outlist):-
+  classListTreeCheck2(Rest, [parent(CName, object)|Classes], Outlist).
 
 
 % an arg is:
@@ -76,6 +79,9 @@ getSignature(Parents, Class, Method, Descs, Sig) :-
   wellFormedArg(Arg),
   member(signature(ParentClass, Method, Arg, Return), Descs),
   Sig = signature(ParentClass, Method, Arg, Return).
+getSignature(Parents, Class, Method, Descs, Sig) :-
+  member(signature(Class, Method, Arg, Return), Descs),
+  Sig = signature(Class, Method, Arg, Return).
 
 findClass(Name, Classes, OutClass) :-
   member(class(Name, P, M), Classes),
@@ -126,4 +132,30 @@ checkMethods(MethodDescs, PName, CName, PMethods,
   member(signature(CName, MName, CArg, CReturn), MethodDescs),
   member(signature(PName, MName, PArg, PReturn), MethodDescs),
   CReturn /= PReturn, !, fail.
+
+% typecheck : List(class), expr, className
+typecheck(Classes, Expr, T) :-
+  classListTreeCheck(Classes, Parents),
+  classesMethodDescriptions(Classes, Methods),
+  type(Methods, Parents, _, Expr, T).
+
+% a bind is
+% bind(x, className)
+
+% type : list(Signature), List(parent), bind, expr, className
+
+type(_, Parents, _, new(ClassName), ClassName) :-
+  member(parent(ClassName, _), Parents).
+type(_, Parents, _, new(object), object).
+
+%type(cast(Expr, ClassName)):-
+%  type(Expr).
+
+type(Sigs, Parents, _, invoke(ObjExpr, MethodName, ArgExpr), Result):-
+  type(Sigs, Parents, _, ObjExpr, ObjClass),
+  type(Sigs, Parents, _, ArgExpr, ArgClass),
+  getSignature(Parents, ObjClass, MethodName, Sigs,
+    signature(_, MethodName, arg(_, ArgClass), Result)).
+
+%type(var(VarName)).
 
