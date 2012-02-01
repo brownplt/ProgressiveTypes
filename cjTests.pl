@@ -72,6 +72,17 @@ assert(childWithoutFoo(class(noFooChild, parentClass, [
     method(noop, arg(p, parentClass), new(noFooChild), noFooChild)
   ]))).
 
+
+assert(noMethodsChild(class(noMethods, parentClass, []))).
+
+assert(goodFooGrandchild(class(goodFooGC, noMethods, [
+  method(foo, arg(p, parentClass), new(parentClass), parentClass)
+]))).
+
+assert(badFooGrandchild(class(badFooGC, noMethods, [
+  method(foo, arg(p, parentClass), new(noMethods), noMethods)
+]))).
+
 write('\n\nShould have interesting results for sig:').
 
 parentWithFoo(P), goodChildWithFoo(C),
@@ -84,14 +95,44 @@ write('\n\nShould have interesting results for methods:').
 parentWithFoo(P), goodChildWithFoo(C),
 classesMethodDescriptions([P,C], Methods).
 
-%parentWithFoo(P), goodChildWithFoo(C), checkInheritance([P,C]).
+write('Just one class should work for checkInheritance:').
+
+parentWithFoo(P4), checkInheritance([P4]).
+
+write('Next should succeed.').
+
+parentWithFoo(P1), goodChildWithFoo(C1), checkInheritance([P1,C1]).
 
 write('Next should fail:').
 
-%parentWithFoo(P), badChildWithFoo(C), checkInheritance([P,C]).
+parentWithFoo(P2), badChildWithFoo(C2), checkInheritance([P2,C2]).
 
-%parentWithFoo(P), childWithoutFoo(C), checkInheritance([P,C]).
+write('Next should succeed.').
 
+parentWithFoo(P3), childWithoutFoo(C3), checkInheritance([P3,C3]).
 
+write('Child with no methods should succeed.').
+
+parentWithFoo(P5), noMethodsChild(C5), checkInheritance([P5,C5]).
+
+assert(noMethodsParent(class(noMethodsP, object, []))).
+
+assert(fooChildNoMethodsParent(class(fooChild, noMethodsP, [
+    method(foo, arg(p, parentClass), var(p), parentClass)
+  ]))).
+
+write('Child with methods and no parent methods should succeed.').
+
+noMethodsParent(P6), fooChildNoMethodsParent(C6), checkInheritance([P6,C6]).
+
+write('Should succeed when grandchild is good:').
+
+parentWithFoo(P7), noMethodsChild(C7), goodFooGrandchild(GC7),
+checkInheritance([P7, C7, GC7]).
+
+write('Should fail when grandchild is bad:').
+
+parentWithFoo(P8), noMethodsChild(C8), badFooGrandchild(GC8),
+checkInheritance([P8, C8, GC8]).
 
 

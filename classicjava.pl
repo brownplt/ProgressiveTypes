@@ -77,5 +77,53 @@ getSignature(Parents, Class, Method, Descs, Sig) :-
   member(signature(ParentClass, Method, Arg, Return), Descs),
   Sig = signature(ParentClass, Method, Arg, Return).
 
+findClass(Name, Classes, OutClass) :-
+  member(class(Name, P, M), Classes),
+  OutClass = class(Name, P, M).
+findSignature(CName, MName, Methods, OutSig) :-
+  member(signature(CName, MName, Arg, Return), Methods),
+  OutSig = signature(CName, MName, Arg, Return).
+
 % checkInheritance : List(class)
+checkInheritance(Classes) :-
+  classListTreeCheck(Classes, Parents),
+  checkInheritanceAncestors(Parents, Classes, Classes).
+
+% checkInheritanceAncestors : List(parent), List(class), List(class)
+checkInheritanceAncestors(_, _, []).
+checkInheritanceAncestors(Parents, AllClasses,
+    [class(CName, CParent, CMethods)|RestClasses]) :-
+  checkChildMethods(Parents, AllClasses, CParent, class(CName, CParent, CMethods)),
+  checkInheritanceAncestors(Parents, AllClasses, RestClasses).
+
+% checkChildMethods : List(parent), List(class), className, class
+checkChildMethods(Parents, Classes, object, Child).
+checkChildMethods(Parents, Classes, AncestorName,
+    class(CName, CParent, CMethods)) :-
+  findClass(AncestorName, Classes, class(AncestorName, AParent, AMethods)),
+  classesMethodDescriptions(Classes, MethodDescs),
+  checkMethods(MethodDescs, AncestorName, CName, AMethods, CMethods),
+  checkChildMethods(Parents, Classes, AParent,
+    class(CName, CParent, CMethods)).
+  
+checkMethods(MethodDescs, PName, CName, PMethods, []).
+checkMethods(MethodDescs, PName, CName, PMethods,
+  [method(MName, _, _, _)|RestMethods]) :-
+  not(member(signature(PName, MName, _, _), MethodDescs)),
+  checkMethods(MethodDescs, PName, CName, PMethods, RestMethods).
+checkMethods(MethodDescs, PName, CName, PMethods,
+  [method(MName, _, _, _)|RestMethods]) :-
+  member(signature(CName, MName, Arg, Return), MethodDescs),
+  member(signature(PName, MName, Arg, Return), MethodDescs),
+  checkMethods(MethodDescs, PName, CName, PMethods, RestMethods).
+checkMethods(MethodDescs, PName, CName, PMethods,
+  [method(MName, _, _, _)|RestMethods]) :-
+  member(signature(CName, MName, CArg, CReturn), MethodDescs),
+  member(signature(PName, MName, PArg, PReturn), MethodDescs),
+  CArg /= PArg, !, fail.
+checkMethods(MethodDescs, PName, CName, PMethods,
+  [method(MName, _, _, _)|RestMethods]) :-
+  member(signature(CName, MName, CArg, CReturn), MethodDescs),
+  member(signature(PName, MName, PArg, PReturn), MethodDescs),
+  CReturn /= PReturn, !, fail.
 
