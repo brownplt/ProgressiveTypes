@@ -5,13 +5,13 @@ wellFormedClass(class(billy, bilysDad, [])).
 wellFormedArg(arg(argName, aClass)).
 
 wellFormedClass(class(aClass, aParent, [method(aMethod, 
-			arg(argName, aClass), var(aClass), aClass)|[]])).
+			arg(argName, aClass), var(aClass), aClass, [])|[]])).
 
 wellFormedMethod(method(aMethod, 
-			arg(argName, aClass), var(aClass), aClass)).
+			arg(argName, aClass), var(aClass), aClass, [])).
 
 assert(isAClass(class(aClass, aParent, [method(aMethod, 
-			arg(argName, aClass), var(aClass), aClass)|[]]))).
+			arg(argName, aClass), var(aClass), aClass, [])|[]]))).
 
 isAClass(X), wellFormedClass(X).
 
@@ -40,48 +40,48 @@ classA(A), classB(B), classListTreeCheck([A, B], Outlist2).
 write('\nMethod list tests').
 
 assert(methodExample1(class(aClass, object, [
-    method(getb, arg(b, bClass), var(b), bClass)
+    method(getb, arg(b, bClass), var(b), bClass, [])
   ]))).
 
 methodExample1(C), classesMethodDescriptions([C], M),
-M = [signature(aClass, getb, arg(b, bClass), bClass)].
+M = [signature(aClass, getb, arg(b, bClass), bClass, [])].
 
 assert(methodExample2(class(bClass, object, [
-    method(geta, arg(a, aClass), var(a), aClass)
+    method(geta, arg(a, aClass), var(a), aClass, [])
   ]))).
 
 methodExample1(A), methodExample2(B), classesMethodDescriptions([A,B],M),
-M = [signature(aClass, getb, arg(b, bClass), bClass),
-     signature(bClass, geta, arg(a, aClass), aClass)].
+M = [signature(aClass, getb, arg(b, bClass), bClass, []),
+     signature(bClass, geta, arg(a, aClass), aClass, [])].
 
 
 write('\nGetting the right signature').
 
 assert(parentWithFoo(class(parentClass, object, [
-    method(foo, arg(p, parentClass), new(parentClass), parentClass)
+    method(foo, arg(p, parentClass), new(parentClass), parentClass, [])
   ]))).
 
 assert(goodChildWithFoo(class(goodChild, parentClass, [
-    method(foo, arg(p, parentClass), var(p), parentClass)
+    method(foo, arg(p, parentClass), var(p), parentClass, [])
   ]))).
 
 assert(badChildWithFoo(class(badChild, parentClass, [
-    method(foo, arg(p, badChild), var(p), badChild)
+    method(foo, arg(p, badChild), var(p), badChild, [])
   ]))).
 
 assert(childWithoutFoo(class(noFooChild, parentClass, [
-    method(noop, arg(p, parentClass), new(noFooChild), noFooChild)
+    method(noop, arg(p, parentClass), new(noFooChild), noFooChild, [])
   ]))).
 
 
 assert(noMethodsChild(class(noMethods, parentClass, []))).
 
 assert(goodFooGrandchild(class(goodFooGC, noMethods, [
-  method(foo, arg(p, parentClass), new(parentClass), parentClass)
+  method(foo, arg(p, parentClass), new(parentClass), parentClass, [])
 ]))).
 
 assert(badFooGrandchild(class(badFooGC, noMethods, [
-  method(foo, arg(p, parentClass), new(noMethods), noMethods)
+  method(foo, arg(p, parentClass), new(noMethods), noMethods, [])
 ]))).
 
 write('\n\nShould have interesting results for sig:').
@@ -119,7 +119,7 @@ parentWithFoo(P5), noMethodsChild(C5), checkInheritance([P5,C5]).
 assert(noMethodsParent(class(noMethodsP, object, []))).
 
 assert(fooChildNoMethodsParent(class(fooChild, noMethodsP, [
-    method(foo, arg(p, parentClass), var(p), parentClass)
+    method(foo, arg(p, parentClass), var(p), parentClass, [])
   ]))).
 
 write('Child with methods and no parent methods should succeed.').
@@ -139,60 +139,94 @@ checkInheritance([P8, C8, GC8]).
 write('Should succeed with T=parentClass when invoked correctly:').
 
 parentWithFoo(P9), typecheck([P9],
-  invoke(new(parentClass),foo,new(parentClass)), T).
+  invoke(new(parentClass),foo,new(parentClass)), T, []).
 
 write('Should fail when invoked incorrectly:').
 
 parentWithFoo(P10), typecheck([P10],
-  invoke(new(parentClass),foo,new(object)), T).
+  invoke(new(parentClass),foo,new(object)), T, Errs).
 
 write('Should typecheck classes\' methods.  Should fail on bad method').
 
 typecheck([class(aClass, object, [
   method(foo, arg(p, object), new(aClass), object)
-])], new(object), T).
+])], new(object), T, Errs).
 
 write('Should fail on bad second method').
 
 typecheck([class(aClass, object, [
-  method(foo, arg(p, object), new(aClass), aClass),
-  method(foo, arg(p, object), new(aClass), object)
-])], new(object), T).
+  method(foo, arg(p, object), new(aClass), aClass, []),
+  method(foo, arg(p, object), new(aClass), object, [])
+])], new(object), T, Errs).
 
 write('Should succeed on well-typed identity.').
 
 typecheck([class(bClass, object, [
-  method(foo, arg(p, object), var(p), object),
-  method(bar, arg(p, bClass), var(p), bClass)
-])], new(object), T).
+  method(foo, arg(p, object), var(p), object, []),
+  method(bar, arg(p, bClass), var(p), bClass, [])
+])], new(object), T, Errs).
 
 write('Cast examples.').
 
-%assert(intClass(class(integer, object, []))).
-%assert(colorClass(class(color, object, []))).
+assert(intClass(class(integer, object, []))).
+assert(colorClass(class(color, object, []))).
 
-%assert(pointClass(class(point, object, [
-%  method(getX, arg(x, object), new(integer), integer)
-%]))).
-%
-%assert(pointClass2(class(point2d, point, [
-%  method(getY, arg(x, object), new(integer), integer)
-%]))).
+assert(pointClass(class(point, object, [
+  method(getX, arg(unused, object), new(integer), integer, [])
+]))).
 
-%assert(pointClassC(class(pointC, point, [
-%  method(getC, arg(x, object), new(color), color)
-%]))).
+assert(pointClass2(class(point2d, point, [
+  method(getY, arg(unused, object), new(integer), integer, [])
+]))).
 
-%assert(shapeClass(class(shape, object []))).
+assert(pointClassC(class(pointC, point, [
+  method(getC, arg(unused, object), new(color), color, [])
+]))).
 
-%assert((exampleList(L) :-
-%  intClass(I),
-%  colorClass(C),
-%  pointClass(PC),
-%  pointClass2(PC2),
-%  pointClassC(PCC),
-%  shapeClass(SC),
-%  L = [I, C, PC, PC2, PCC, SC]
-%)).
+assert(shapeClass(class(shape, object, []))).
+
+assert((exampleList(L) :-
+  intClass(I),
+  colorClass(C),
+  pointClass(PC),
+  pointClass2(PC2),
+  pointClassC(PCC),
+  shapeClass(SC),
+  L = [I, C, PC, PC2, PCC, SC]
+)).
+
+write('Next 6 should succeed').
+
+exampleList(CS), typecheck(CS, cast(new(point), object), object, []).
+
+exampleList(CS), typecheck(CS, cast(new(point), point), point, []).
+
+exampleList(CS), typecheck(CS, cast(new(point), shape), bottom, [errcrosscast]).
+
+exampleList(CS), typecheck(CS, cast(new(point), point2d), point2d, [errdowncast]).
+
+exampleList(CS), typecheck(CS, cast(new(point), pointC), pointC, [errdowncast]).
+
+exampleList(CS), typecheck(CS, cast(new(point2d), object), object, []).
+
+assert(badCastingClass(class(badcast, object, [
+  method(foo, arg(c, integer), cast(var(c), color), bottom, [errcrosscast])
+]))).
+
+badCastingClass(B), intClass(I), colorClass(C),
+typecheck([I,C,B], invoke(new(badcast), foo,
+    cast(new(object), integer)), T, E).
+
+badCastingClass(B), intClass(I), colorClass(C),
+typecheck([I,C,B], invoke(cast(new(integer), badcast), foo, new(integer)), T, E).
+
+assert(badDeclaringClass(class(baddecl, object, [
+  method(throwsalot, arg(t, object), cast(var(t), integer), [])
+]))).
+
+write('Bad declaring class should FAIL:').
+
+badDeclaringClass(B), intClass(I),
+typecheck([I,B], new(object), T, E).
 
 
