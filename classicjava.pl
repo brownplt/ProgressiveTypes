@@ -137,25 +137,41 @@ checkMethods(MethodDescs, PName, CName, PMethods,
 typecheck(Classes, Expr, T) :-
   classListTreeCheck(Classes, Parents),
   classesMethodDescriptions(Classes, Methods),
+  typecheckClasses(Parents, Methods, Classes),
   type(Methods, Parents, _, Expr, T).
 
-% a bind is
-% bind(x, className)
+typecheckClasses(_, _, []).
+typecheckClasses(Parents, Methods, [Class|Classes]) :-
+  typecheckClass(Parents, Methods, Class),
+  typecheckClasses(Parents, Methods, Classes).
 
-% type : list(Signature), List(parent), bind, expr, className
+typecheckClass(Parents, Methods, class(Name, PName, CMethods)) :-
+  typecheckMethods(Parents, Methods, CMethods).
 
-type(_, Parents, _, new(ClassName), ClassName) :-
+typecheckMethods(Parents, Methods, []).
+typecheckMethods(Parents, Methods, [CMethod|CMethods]) :-
+  typecheckMethod(Parents, Methods, CMethod),
+  typecheckMethods(Parents, Methods, CMethods).
+
+typecheckMethod(Parents, Methods, method(Name, Arg, Body, Result)) :-
+  type(Methods, Parents, Arg, Body, Result).
+
+% type : list(Signature), List(parent), arg, expr, className
+type(_, Parents, A, new(ClassName), ClassName) :-
   member(parent(ClassName, _), Parents).
-type(_, Parents, _, new(object), object).
+type(_, Parents, A, new(object), object).
 
-%type(cast(Expr, ClassName)):-
-%  type(Expr).
-
-type(Sigs, Parents, _, invoke(ObjExpr, MethodName, ArgExpr), Result):-
-  type(Sigs, Parents, _, ObjExpr, ObjClass),
-  type(Sigs, Parents, _, ArgExpr, ArgClass),
+type(Sigs, Parents, A, invoke(ObjExpr, MethodName, ArgExpr), Result):-
+  type(Sigs, Parents, A, ObjExpr, ObjClass),
+  type(Sigs, Parents, A, ArgExpr, ArgClass),
   getSignature(Parents, ObjClass, MethodName, Sigs,
     signature(_, MethodName, arg(_, ArgClass), Result)).
 
-%type(var(VarName)).
+type(_, _, arg(VarName, Result), var(VarName), Result).
+
+%type(cast(Sigs, Parents, A, Expr, ClassName)):-
+%  type(Sigs, Parents, A, Expr, ClassName).
+%type(cast(Sigs, Parents, A, Expr, ClassName)):-
+%  type(Sigs, Parents, A, Expr, ClassName).
+  
 

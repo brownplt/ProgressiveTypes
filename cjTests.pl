@@ -124,7 +124,7 @@ assert(fooChildNoMethodsParent(class(fooChild, noMethodsP, [
 
 write('Child with methods and no parent methods should succeed.').
 
-noMethodsParent(P6), fooChildNoMethodsParent(C6), checkInheritance([P6,C6]).
+noMethodsParent(P6), fooChildNoMethodsParent(C6), checkInheritance([P6, C6]).
 
 write('Should succeed when grandchild is good:').
 
@@ -146,9 +146,53 @@ write('Should fail when invoked incorrectly:').
 parentWithFoo(P10), typecheck([P10],
   invoke(new(parentClass),foo,new(object)), T).
 
-write('End.').
+write('Should typecheck classes\' methods.  Should fail on bad method').
 
-parentWithFoo(P11), classesMethodDescriptions([P11],D),
-classListTreeCheck([P11], Par),
-getSignature(Par, parentClass, foo, D, Sig).
+typecheck([class(aClass, object, [
+  method(foo, arg(p, object), new(aClass), object)
+])], new(object), T).
+
+write('Should fail on bad second method').
+
+typecheck([class(aClass, object, [
+  method(foo, arg(p, object), new(aClass), aClass),
+  method(foo, arg(p, object), new(aClass), object)
+])], new(object), T).
+
+write('Should succeed on well-typed identity.').
+
+typecheck([class(bClass, object, [
+  method(foo, arg(p, object), var(p), object),
+  method(bar, arg(p, bClass), var(p), bClass)
+])], new(object), T).
+
+write('Cast examples.').
+
+%assert(intClass(class(integer, object, []))).
+%assert(colorClass(class(color, object, []))).
+
+%assert(pointClass(class(point, object, [
+%  method(getX, arg(x, object), new(integer), integer)
+%]))).
+%
+%assert(pointClass2(class(point2d, point, [
+%  method(getY, arg(x, object), new(integer), integer)
+%]))).
+
+%assert(pointClassC(class(pointC, point, [
+%  method(getC, arg(x, object), new(color), color)
+%]))).
+
+%assert(shapeClass(class(shape, object []))).
+
+%assert((exampleList(L) :-
+%  intClass(I),
+%  colorClass(C),
+%  pointClass(PC),
+%  pointClass2(PC2),
+%  pointClassC(PCC),
+%  shapeClass(SC),
+%  L = [I, C, PC, PC2, PCC, SC]
+%)).
+
 
