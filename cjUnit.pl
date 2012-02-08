@@ -29,10 +29,15 @@ isAClass(class(aClass, aParent,
 test(wfc2) :-
   isAClass(X), wellFormedClass(X).
 
-isAnExpr(invoke(new(aClass), aMethod, new(aClass))).
+isAnExpr(invoke(new(aClass), aMethod, getfield(new(aClass),z))).
+isAnExpr2(getfield(invoke(new(aClass), aMethod,
+            getfield(new(aClass),z)), y)).
 
 test(wfe2) :-
   isAnExpr(Y), wellFormedExpr(Y).
+
+test(wfe3) :-
+  isAnExpr2(Y), wellFormedExpr(Y).
 
 test(wfp) :-
   isAClass(X), isAnExpr(Y), wellFormedProg([X], Y).
@@ -103,6 +108,10 @@ goodFooGrandchild(class(goodFooGC, noMethods, [], [
   method(foo, arg(p, parentClass), new(parentClass), parentClass, [])
 ])).
 
+goodGrandchildX(class(goodFooGC, noMethods, [
+  field(x, object)
+], [])).
+
 badFooGrandchild(class(badFooGC, noMethods, [], [
   method(foo, arg(p, parentClass), new(noMethods), noMethods, [])
 ])).
@@ -113,13 +122,20 @@ fooChildNoMethodsParent(class(fooChild, noMethodsP, [], [
     method(foo, arg(p, parentClass), var(p), parentClass, [])
 ])).
 
+test(parent_fields, [nondet]) :-
+  parentWithFoo(P),
+  F = [
+    fieldsig(parentClass, x, object)
+  ],
+  classesFieldDescriptions([P], F).
+
 test(good_child_fields, [nondet]) :-
   parentWithFoo(P), goodChildWithX(C),
   F = [
     fieldsig(parentClass, x, object),
     fieldsig(goodFieldChild, x, object)
   ],
-  classesMethodDescriptions([P,C], F).
+  classesFieldDescriptions([P,C], F).
 
 test(goodchilddescs, [nondet]) :-
   parentWithFoo(P), goodChildWithFoo(C),
@@ -138,6 +154,16 @@ test(goodchildsig, [nondet]) :-
 
 test(checkinheritsingle, [nondet]) :-
   parentWithFoo(P), checkInheritance([P]).
+
+test(checkinheritfield, [nondet]) :-
+  parentWithFoo(P), goodChildWithX(C), checkInheritance([P, C]).
+
+test(checkinheritbadfield, [fail]) :-
+  parentWithFoo(P), badChildWithX(C), checkInheritance([P, C]).
+
+test(checkinheritskipfield, [nondet]) :-
+  parentWithFoo(P), noMethodsChild(C), goodGrandchildX(GC),
+  checkInheritance([P, C, GC]).
 
 test(checkinheritgood, [nondet]) :-
   parentWithFoo(P), goodChildWithFoo(C), checkInheritance([P,C]).
@@ -190,11 +216,15 @@ test(id, [nondet]) :-
 intClass(class(integer, object, [], [])).
 colorClass(class(color, object, [], [])).
 
-pointClass(class(point, object, [], [
-  method(getX, arg(unused, object), new(integer), integer, [])
+pointClass(class(point, object, [
+  field(x, integer)
+], [
+  method(getX, arg(p, object), new(integer), integer, [])
 ])).
 
-pointClass2(class(point2d, point, [], [
+pointClass2(class(point2d, point, [
+  field(y, integer)
+], [
   method(getY, arg(unused, object), new(integer), integer, [])
 ])).
 
@@ -212,6 +242,17 @@ exampleList(L) :-
   pointClassC(PCC),
   shapeClass(SC),
   L = [I, C, PC, PC2, PCC, SC].
+
+test(get_x, [nondet]) :-
+  exampleList(CS), typecheck(CS, getfield(new(point), x), integer, []).
+test(get_x2, [nondet]) :-
+  exampleList(CS), typecheck(CS, getfield(new(point2d), x), integer, []).
+test(get_y, [nondet]) :-
+  exampleList(CS), typecheck(CS, getfield(new(point2d), y), integer, []).
+
+test(get_zbad, [nondet]) :-
+  exampleList(CS), typecheck(CS, getfield(new(point), z), bottom,
+    [errfieldnotfound]).
 
 test(point_to_object, [nondet]) :-
   exampleList(CS), typecheck(CS, cast(new(point), object), object, []).
