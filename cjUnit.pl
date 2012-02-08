@@ -249,10 +249,13 @@ test(get_x2, [nondet]) :-
   exampleList(CS), typecheck(CS, getfield(new(point2d), x), integer, []).
 test(get_y, [nondet]) :-
   exampleList(CS), typecheck(CS, getfield(new(point2d), y), integer, []).
-
 test(get_zbad, [nondet]) :-
   exampleList(CS), typecheck(CS, getfield(new(point), z), bottom,
     [errfieldnotfound]).
+
+test(invoke_bad, [nondet]) :-
+  exampleList(CS), typecheck(CS, invoke(new(point), notmethod, new(object)),
+    bottom, [errmethodnotfound]).
 
 test(point_to_object, [nondet]) :-
   exampleList(CS), typecheck(CS, cast(new(point), object), object, []).

@@ -245,6 +245,12 @@ type(Fields, Sigs, Parents, A, invoke(ObjExpr, MethodName, ArgExpr), Result, Err
   getSignature(Parents, ObjClass, MethodName, Sigs,
     signature(_, MethodName, arg(_, ArgClass), Result, SErrors)),
   append([OErrors, AErrors, SErrors], Errors).
+type(Fields, Sigs, Parents, A, invoke(ObjExpr, MethodName, ArgExpr), Result, Errors):-
+  type(Fields, Sigs, Parents, A, ObjExpr, ObjClass, OErrors),
+  type(Fields, Sigs, Parents, A, ArgExpr, ArgClass, AErrors),
+  not(getSignature(Parents, ObjClass, MethodName, Sigs,
+    signature(_, MethodName, _, _, _))),
+  append([[errmethodnotfound], OErrors, AErrors], Errors).
 type(Fields, Sigs, Parents, A, invoke(ObjExpr, _, ArgExpr), Result, Errors):-
   type(Fields, Sigs, Parents, A, ObjExpr, ObjClass, OErrors),
   type(Fields, Sigs, Parents, A, ArgExpr, ArgClass, AErrors),
