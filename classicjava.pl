@@ -70,6 +70,17 @@ classListTreeCheck2([class(CName, PName, _, _)|Rest], Classes, Outlist):-
 % an arg is:
 % arg(argName, argType)
 
+classesFieldDescriptions([], Fields) :- Fields = [].
+classesFieldDescriptions([class(ClassName, _, CFields, _)|Rest], Fields) :-
+  classFieldDescriptions(ClassName, CFields, TheseFields),
+  classesFieldDescriptions(Rest, RestFields),
+  append([TheseFields, RestFields], Fields).
+
+classFieldDescriptions(_, [], Fields) :- Fields = [].
+classFieldDescriptions(ClassName, [field(Name, Type)|Rest]) :-
+  Fields = [fieldsig(ClassName, Name, Type)|RestFields],
+  classFieldDescriptions(ClassName, Rest, RestFields).
+
 % a signature is:
 % signature(className, methodName, arg, returnType, errors)
 

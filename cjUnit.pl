@@ -71,17 +71,27 @@ test(methods2) :-
 
 % Getting the right signature
 
-parentWithFoo(class(parentClass, object, [], [
-    method(foo, arg(p, parentClass), new(parentClass), parentClass, [])
+parentWithFoo(class(parentClass, object, [
+  field(x, object)
+], [
+  method(foo, arg(p, parentClass), new(parentClass), parentClass, [])
 ])).
 
 goodChildWithFoo(class(goodChild, parentClass, [], [
     method(foo, arg(p, parentClass), var(p), parentClass, [])
 ])).
 
+goodChildWithX(class(goodFieldChild, parentClass, [
+  field(x, object)
+], [])).
+
 badChildWithFoo(class(badChild, parentClass, [], [
-    method(foo, arg(p, badChild), var(p), badChild, [])
+  method(foo, arg(p, badChild), var(p), badChild, [])
 ])).
+
+badChildWithX(class(badFieldChild, parentclass, [
+  field(x, parentClass)
+], [])).
 
 childWithoutFoo(class(noFooChild, parentClass, [], [
     method(noop, arg(p, parentClass), new(noFooChild), noFooChild, [])
@@ -102,6 +112,14 @@ noMethodsParent(class(noMethodsP, object, [], [])).
 fooChildNoMethodsParent(class(fooChild, noMethodsP, [], [
     method(foo, arg(p, parentClass), var(p), parentClass, [])
 ])).
+
+test(good_child_fields, [nondet]) :-
+  parentWithFoo(P), goodChildWithX(C),
+  F = [
+    fieldsig(parentClass, x, object),
+    fieldsig(goodFieldChild, x, object)
+  ],
+  classesMethodDescriptions([P,C], F).
 
 test(goodchilddescs, [nondet]) :-
   parentWithFoo(P), goodChildWithFoo(C),
@@ -161,7 +179,7 @@ test(badmethod2, [fail]) :-
     method(foo, arg(p, object), new(aClass), aClass, []),
     method(foo, arg(p, object), new(aClass), object, [])
   ])], new(object), _, _).
-  
+
 test(id, [nondet]) :-
   typecheck([class(bClass, object, [], [
     method(foo, arg(p, object), var(p), object, []),
