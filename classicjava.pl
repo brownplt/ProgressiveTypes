@@ -1,3 +1,16 @@
+:- module(classicjava, [
+  wellFormedProg/2,
+  wellFormedClass/1,
+  wellFormedMethods/1,
+  wellFormedMethod/1,
+  wellFormedArg/1,
+  wellFormedExpr/1,
+  classListTreeCheck/2,
+  classesMethodDescriptions/2,
+  getSignature/5,
+  checkInheritance/1,
+  typecheck/4
+]).
 
 wellFormedProg([Cd1|Rest], Expr):-
   wellFormedClass(Cd1),
@@ -6,7 +19,7 @@ wellFormedProg([Cd1|Rest], Expr):-
 wellFormedProg([], Expr):-
   wellFormedExpr(Expr).
 
-wellFormedClass(class(Name, Parent, Methods)):-
+wellFormedClass(class(_, _, Methods)):-
   wellFormedMethods(Methods).
 
 wellFormedMethods([Method1|Rest]):-
@@ -15,39 +28,36 @@ wellFormedMethods([Method1|Rest]):-
 
 wellFormedMethods([]).
 
-wellFormedMethod(method(Name, Arg, BodyExpr, Res, Errors)):-
+wellFormedMethod(method(_, Arg, BodyExpr, _, _)):-
   wellFormedArg(Arg),
   wellFormedExpr(BodyExpr).
 
-wellFormedArg(arg(Name, Class)).
+wellFormedArg(arg(_, _)).
 
-wellFormedExpr(new(ClassName)).
+wellFormedExpr(new(_)).
 
-wellFormedExpr(cast(Expr, ClassName)):-
+wellFormedExpr(cast(Expr, _)):-
   wellFormedExpr(Expr).
 
-wellFormedExpr(invoke(ObjExpr, MethodName, ArgExpr)):-
+wellFormedExpr(invoke(ObjExpr, _, ArgExpr)):-
   wellFormedExpr(ArgExpr),
   wellFormedExpr(ObjExpr).
 
-wellFormedExpr(var(VarName)).
+wellFormedExpr(var(_)).
 
 classListTreeCheck(List, Outlist):-
   classListTreeCheck2(List, [], Outlist).
-
-classListTreeCheck2([], Classes, Outlist) :- Outlist=Classes.
 
 % a parent is:
 % parent(childClassName, parentClassName)
 
 % classListTreeCheck2 : List(class), List(parent), List(parent)
-classListTreeCheck2([class(CName, PName, _)|Rest], Classes, Outlist):-
-  member(parent(PName, _), Classes),
-  classListTreeCheck2(Rest, [parent(CName, PName)|Classes], Outlist).
-
+classListTreeCheck2([], Classes, Outlist) :- Classes=Outlist.
 classListTreeCheck2([class(CName, object, _)|Rest], Classes, Outlist):-
   classListTreeCheck2(Rest, [parent(CName, object)|Classes], Outlist).
-
+classListTreeCheck2([class(CName, PName, _)|Rest], Classes, Outlist):-
+  classListTreeCheck2(Rest, [parent(CName, PName)|Classes], Outlist),
+  member(parent(PName, _), Classes).
 
 % an arg is:
 % arg(argName, argType)
@@ -79,7 +89,7 @@ getSignature(Parents, Class, Method, Descs, Sig) :-
   wellFormedArg(Arg),
   member(signature(ParentClass, Method, Arg, Return, Errors), Descs),
   Sig = signature(ParentClass, Method, Arg, Return, Errors).
-getSignature(Parents, Class, Method, Descs, Sig) :-
+getSignature(_, Class, Method, Descs, Sig) :-
   member(signature(Class, Method, Arg, Return, Errors), Descs),
   Sig = signature(Class, Method, Arg, Return, Errors).
 
@@ -103,7 +113,7 @@ checkInheritanceAncestors(Parents, AllClasses,
   checkInheritanceAncestors(Parents, AllClasses, RestClasses).
 
 % checkChildMethods : List(parent), List(class), className, class
-checkChildMethods(Parents, Classes, object, Child).
+checkChildMethods(_, _, object, _).
 checkChildMethods(Parents, Classes, AncestorName,
     class(CName, CParent, CMethods)) :-
   findClass(AncestorName, Classes, class(AncestorName, AParent, AMethods)),
@@ -112,7 +122,7 @@ checkChildMethods(Parents, Classes, AncestorName,
   checkChildMethods(Parents, Classes, AParent,
     class(CName, CParent, CMethods)).
   
-checkMethods(MethodDescs, PName, CName, PMethods, []).
+checkMethods(_, _, _, _, []).
 checkMethods(MethodDescs, PName, CName, PMethods,
   [method(MName, _, _, _, _)|RestMethods]) :-
   not(member(signature(PName, MName, _, _, _), MethodDescs)),
@@ -122,18 +132,18 @@ checkMethods(MethodDescs, PName, CName, PMethods,
   member(signature(CName, MName, Arg, Return, Errors), MethodDescs),
   member(signature(PName, MName, Arg, Return, Errors), MethodDescs),
   checkMethods(MethodDescs, PName, CName, PMethods, RestMethods).
-checkMethods(MethodDescs, PName, CName, PMethods,
-  [method(MName, _, _, _, _)|RestMethods]) :-
+checkMethods(MethodDescs, PName, CName, _,
+  [method(MName, _, _, _, _)|_]) :-
   member(signature(CName, MName, CArg, _, _), MethodDescs),
   member(signature(PName, MName, PArg, _, _), MethodDescs),
   not(CArg = PArg), !, fail.
-checkMethods(MethodDescs, PName, CName, PMethods,
-  [method(MName, _, _, _, _)|RestMethods]) :-
+checkMethods(MethodDescs, PName, CName, _,
+  [method(MName, _, _, _, _)|_]) :-
   member(signature(CName, MName, _, CReturn, _), MethodDescs),
   member(signature(PName, MName, _, PReturn, _), MethodDescs),
   not(CReturn = PReturn), !, fail.
-checkMethods(MethodDescs, PName, CName, PMethods,
-  [method(MName, _, _, _, _)|RestMethods]) :-
+checkMethods(MethodDescs, PName, CName, _,
+  [method(MName, _, _, _, _)|_]) :-
   member(signature(CName, MName, _, _, CErrors), MethodDescs),
   member(signature(PName, MName, _, _, PErrors), MethodDescs),
   not(CErrors = PErrors), !, fail.
@@ -150,21 +160,21 @@ typecheckClasses(Parents, Methods, [Class|Classes]) :-
   typecheckClass(Parents, Methods, Class),
   typecheckClasses(Parents, Methods, Classes).
 
-typecheckClass(Parents, Methods, class(Name, PName, CMethods)) :-
+typecheckClass(Parents, Methods, class(_, _, CMethods)) :-
   typecheckMethods(Parents, Methods, CMethods).
 
-typecheckMethods(Parents, Methods, []).
+typecheckMethods(_, _, []).
 typecheckMethods(Parents, Methods, [CMethod|CMethods]) :-
   typecheckMethod(Parents, Methods, CMethod),
   typecheckMethods(Parents, Methods, CMethods).
 
-typecheckMethod(Parents, Methods, method(Name, Arg, Body, Result, Errors)) :-
+typecheckMethod(Parents, Methods, method(_, Arg, Body, Result, Errors)) :-
   type(Methods, Parents, Arg, Body, Result, Errors).
 
 % type : list(Signature), List(parent), arg, expr, className, List(error)
-type(_, Parents, A, new(ClassName), ClassName, _) :-
+type(_, Parents, _, new(ClassName), ClassName, _) :-
   member(parent(ClassName, _), Parents).
-type(_, Parents, A, new(object), object, _).
+type(_, _, _, new(object), object, _).
 
 type(Sigs, Parents, A, invoke(ObjExpr, MethodName, ArgExpr), Result, Errors):-
   type(Sigs, Parents, A, ObjExpr, ObjClass, OErrors),
@@ -172,7 +182,7 @@ type(Sigs, Parents, A, invoke(ObjExpr, MethodName, ArgExpr), Result, Errors):-
   getSignature(Parents, ObjClass, MethodName, Sigs,
     signature(_, MethodName, arg(_, ArgClass), Result, SErrors)),
   append([OErrors, AErrors, SErrors], Errors).
-type(Sigs, Parents, A, invoke(ObjExpr, MethodName, ArgExpr), Result, Errors):-
+type(Sigs, Parents, A, invoke(ObjExpr, _, ArgExpr), Result, Errors):-
   type(Sigs, Parents, A, ObjExpr, ObjClass, OErrors),
   type(Sigs, Parents, A, ArgExpr, ArgClass, AErrors),
   (ObjClass = bottom; ArgClass = bottom),
