@@ -132,29 +132,43 @@ findSignature(CName, MName, Methods, OutSig) :-
   member(signature(CName, MName, Arg, Return, Errors), Methods),
   OutSig = signature(CName, MName, Arg, Return, Errors).
 
+% a context is
+% context(List(parent), List(fieldDesc), List(methodDesc))
+
+% getContext : List(class), context
+getContext(Classes, context(Parents, FieldDescs, MethodDescs)) :-
+  classListTreeCheck(Classes, Parents),
+  classesFieldDescriptions(Classes, FieldDescs),
+  classesMethodDescriptions(Classes, MethodDescs).
+
+contextParents(context(Parents, _, _), Parents).
+contextFieldDescs(context(_, FieldDescs, _), FieldDescs).
+contextMethodDescs(context(_, _, MethodDescs), MethodDescs).
+
 % checkInheritance : List(class)
 checkInheritance(Classes) :-
-  classListTreeCheck(Classes, Parents),
-  checkInheritanceAncestors(Parents, Classes, Classes).
+  getContext(Classes, Context),
+  checkInheritanceAncestors(Context, Classes, Classes).
 
 % checkInheritanceAncestors : List(parent), List(class), List(class)
 checkInheritanceAncestors(_, _, []).
-checkInheritanceAncestors(Parents, AllClasses,
+checkInheritanceAncestors(Context, AllClasses,
     [class(CName, CParent, CFields, CMethods)|RestClasses]) :-
-  checkChildMethods(Parents, AllClasses, CParent,
+  contextMethodDescs(Context, MethodDescs),
+  contextFieldDescs(Context, FieldDescs),
+  checkChildMethods(MethodDescs, AllClasses, CParent,
                     class(CName, CParent, CFields, CMethods)),
-  checkChildFields(Parents, AllClasses, CParent,
+  checkChildFields(FieldDescs, AllClasses, CParent,
                    class(CName, CParent, CFields, CMethods)),
-  checkInheritanceAncestors(Parents, AllClasses, RestClasses).
+  checkInheritanceAncestors(Context, AllClasses, RestClasses).
 
 checkChildFields(_, _, object, _).
-checkChildFields(Parents, Classes, AncestorName,
+checkChildFields(FieldDescs, Classes, AncestorName,
     class(CName, CParent, CFields, CMethods)) :-
   findClass(AncestorName, Classes,
             class(AncestorName, AParent, AFields, _)),
-  classesFieldDescriptions(Classes, FieldDescs),
   checkFields(FieldDescs, AncestorName, CName, AFields, CFields),
-  checkChildFields(Parents, Classes, AParent,
+  checkChildFields(FieldDescs, Classes, AParent,
     class(CName, CParent, CFields, CMethods)).
 
 checkFields(_, _, _, _, []).
@@ -175,13 +189,12 @@ checkFields(FieldDescs, PName, CName, _,
 
 % checkChildMethods : List(parent), List(class), className, class
 checkChildMethods(_, _, object, _).
-checkChildMethods(Parents, Classes, AncestorName,
+checkChildMethods(MethodDescs, Classes, AncestorName,
     class(CName, CParent, CFields, CMethods)) :-
   findClass(AncestorName, Classes,
             class(AncestorName, AParent, _, AMethods)),
-  classesMethodDescriptions(Classes, MethodDescs),
   checkMethods(MethodDescs, AncestorName, CName, AMethods, CMethods),
-  checkChildMethods(Parents, Classes, AParent,
+  checkChildMethods(MethodDescs, Classes, AParent,
     class(CName, CParent, CFields, CMethods)).
   
 checkMethods(_, _, _, _, []).
@@ -212,72 +225,81 @@ checkMethods(MethodDescs, PName, CName, _,
 
 % typecheck : List(class), expr, className, List(error)
 typecheck(Classes, Expr, T, Errors) :-
-  classListTreeCheck(Classes, Parents),
-  classesMethodDescriptions(Classes, Methods),
-  classesFieldDescriptions(Classes, Fields),
-  typecheckClasses(Parents, Fields, Methods, Classes),
-  type(Fields, Methods, Parents, _, Expr, T, Errors).
+  getContext(Classes, Context),
+  typecheckClasses(Context, Classes),
+  type(Context, _, Expr, T, Errors).
 
-typecheckClasses(_, _, _, []).
-typecheckClasses(Parents, Fields, Methods, [Class|Classes]) :-
-  typecheckClass(Parents, Fields, Methods, Class),
-  typecheckClasses(Parents, Fields, Methods, Classes).
+typecheckClasses(_, []).
+typecheckClasses(Context, [Class|Classes]) :-
+  typecheckClass(Context, Class),
+  typecheckClasses(Context, Classes).
 
-typecheckClass(Parents, Fields, Methods, class(_, _, _, CMethods)) :-
-  typecheckMethods(Parents, Fields, Methods, CMethods).
+typecheckClass(Context, class(_, _, _, CMethods)) :-
+  typecheckMethods(Context, CMethods).
 
-typecheckMethods(_, _, _, []).
-typecheckMethods(Parents, Fields, Methods, [CMethod|CMethods]) :-
-  typecheckMethod(Parents, Fields, Methods, CMethod),
-  typecheckMethods(Parents, Fields, Methods, CMethods).
+typecheckMethods(_, []).
+typecheckMethods(Context, [CMethod|CMethods]) :-
+  typecheckMethod(Context, CMethod),
+  typecheckMethods(Context, CMethods).
 
-typecheckMethod(Parents, Fields, Methods, method(_, Arg, Body, Result, Errors)) :-
-  type(Fields, Methods, Parents, Arg, Body, Result, Errors).
+typecheckMethod(Context, method(_, Arg, Body, Result, Errors)) :-
+  type(Context, Arg, Body, Result, Errors).
 
-% type : list(Signature), List(parent), arg, expr, className, List(error)
-type(_, _, Parents, _, new(ClassName), ClassName, _) :-
+% type : list(fieldsig), list(Signature), List(parent), arg, expr, className, List(error)
+type(context(Parents, _, _), _, new(ClassName), ClassName, _) :-
   member(parent(ClassName, _), Parents).
-type(_, _, _, _, new(object), object, _).
+type(_, _, new(object), object, _).
 
-type(Fields, Sigs, Parents, A, invoke(ObjExpr, MethodName, ArgExpr), Result, Errors):-
-  type(Fields, Sigs, Parents, A, ObjExpr, ObjClass, OErrors),
-  type(Fields, Sigs, Parents, A, ArgExpr, ArgClass, AErrors),
+type(Context, A, invoke(ObjExpr, MethodName, ArgExpr), Result, Errors):-
+  contextParents(Context, Parents),
+  contextMethodDescs(Context, Sigs),
+  type(Context, A, ObjExpr, ObjClass, OErrors),
+  type(Context, A, ArgExpr, ArgClass, AErrors),
   getSignature(Parents, ObjClass, MethodName, Sigs,
     signature(_, MethodName, arg(_, ArgClass), Result, SErrors)),
   append([OErrors, AErrors, SErrors], Errors).
-type(Fields, Sigs, Parents, A, invoke(ObjExpr, MethodName, ArgExpr), Result, Errors):-
-  type(Fields, Sigs, Parents, A, ObjExpr, ObjClass, OErrors),
-  type(Fields, Sigs, Parents, A, ArgExpr, ArgClass, AErrors),
+type(Context, A, invoke(ObjExpr, MethodName, ArgExpr), bottom, Errors):-
+  contextParents(Context, Parents),
+  contextMethodDescs(Context, Sigs),
+  type(Context, A, ObjExpr, ObjClass, OErrors),
+  type(Context, A, ArgExpr, _, AErrors),
   not(getSignature(Parents, ObjClass, MethodName, Sigs,
     signature(_, MethodName, _, _, _))),
   append([[errmethodnotfound], OErrors, AErrors], Errors).
-type(Fields, Sigs, Parents, A, invoke(ObjExpr, _, ArgExpr), Result, Errors):-
-  type(Fields, Sigs, Parents, A, ObjExpr, ObjClass, OErrors),
-  type(Fields, Sigs, Parents, A, ArgExpr, ArgClass, AErrors),
+type(Context, A, invoke(ObjExpr, _, ArgExpr), Result, Errors):-
+  type(Context, A, ObjExpr, ObjClass, OErrors),
+  type(Context, A, ArgExpr, ArgClass, AErrors),
   (ObjClass = bottom; ArgClass = bottom),
   Result = bottom, append([OErrors, AErrors], Errors).
 
-type(Fields, Sigs, Parents, A, getfield(ObjExpr, FName), FType, Errors):-
-  type(Fields, Sigs, Parents, A, ObjExpr, ObjClass, Errors),
+type(Context, A, getfield(ObjExpr, FName), FType, Errors):-
+  contextParents(Context, Parents),
+  contextFieldDescs(Context, Fields),
+  type(Context, A, ObjExpr, ObjClass, Errors),
   getField(Parents, ObjClass, FName, Fields, fieldsig(_, FName, FType)).
-type(Fields, Sigs, Parents, A, getfield(ObjExpr, FName), bottom, Errors):-
-  type(Fields, Sigs, Parents, A, ObjExpr, ObjClass, OErrors),
+type(Context, A, getfield(ObjExpr, FName), bottom, Errors):-
+  contextParents(Context, Parents),
+  contextFieldDescs(Context, Fields),
+  type(Context, A, ObjExpr, ObjClass, OErrors),
   not(getField(Parents, ObjClass, FName, Fields, fieldsig(_, FName, _))),
   Errors = [errfieldnotfound|OErrors].
 
-type(_, _, _, arg(VarName, Result), var(VarName), Result, _).
+type(_, arg(VarName, Result), var(VarName), Result, _).
 
-type(Fields, Sigs, Parents, A, cast(Expr, ClassName), ClassName, Errors):-
-  type(Fields, Sigs, Parents, A, Expr, ClassName, Errors).
-type(Fields, Sigs, Parents, A, cast(Expr, ParentClassName), ParentClassName, Errors):-
-  type(Fields, Sigs, Parents, A, Expr, EClassName, Errors),
+type(Context, A, cast(Expr, ClassName), ClassName, Errors):-
+  type(Context, A, Expr, ClassName, Errors).
+type(Context, A, cast(Expr, ParentClassName), ParentClassName, Errors):-
+  contextParents(Context, Parents),
+  type(Context, A, Expr, EClassName, Errors),
   isAncestor(Parents, EClassName, ParentClassName).
-type(Fields, Sigs, Parents, A, cast(Expr, ChildClassName), ChildClassName, Errors):-
-  type(Fields, Sigs, Parents, A, Expr, EClassName, EErrors),
+type(Context, A, cast(Expr, ChildClassName), ChildClassName, Errors):-
+  contextParents(Context, Parents),
+  type(Context, A, Expr, EClassName, EErrors),
   isAncestor(Parents, ChildClassName, EClassName),
   Errors = [errdowncast|EErrors].
-type(Fields, Sigs, Parents, A, cast(Expr, OtherClassName), bottom, Errors):-
-  type(Fields, Sigs, Parents, A, Expr, EClassName, EErrors),
+type(Context, A, cast(Expr, OtherClassName), bottom, Errors):-
+  contextParents(Context, Parents),
+  type(Context, A, Expr, EClassName, EErrors),
   not(EClassName = OtherClassName),
   not(isAncestor(Parents, EClassName, OtherClassName)),
   not(isAncestor(Parents, OtherClassName, EClassName)),
