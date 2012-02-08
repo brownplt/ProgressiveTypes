@@ -3,6 +3,7 @@
   wellFormedClass/1,
   wellFormedMethods/1,
   wellFormedMethod/1,
+  wellFormedField/1,
   wellFormedArg/1,
   wellFormedExpr/1,
   classListTreeCheck/2,
@@ -19,14 +20,21 @@ wellFormedProg([Cd1|Rest], Expr):-
 wellFormedProg([], Expr):-
   wellFormedExpr(Expr).
 
-wellFormedClass(class(_, _, Methods)):-
+wellFormedClass(class(_, _, Fields, Methods)) :-
+  wellFormedFields(Fields),
   wellFormedMethods(Methods).
 
+wellFormedFields([]).
+wellFormedFields([Field1|Rest]) :-
+  wellFormedField(Field1),
+  wellFormedFields(Rest).
+
+wellFormedField(field(_, _)).
+
+wellFormedMethods([]).
 wellFormedMethods([Method1|Rest]):-
   wellFormedMethod(Method1),
   wellFormedMethods(Rest).
-
-wellFormedMethods([]).
 
 wellFormedMethod(method(_, Arg, BodyExpr, _, _)):-
   wellFormedArg(Arg),
@@ -53,9 +61,9 @@ classListTreeCheck(List, Outlist):-
 
 % classListTreeCheck2 : List(class), List(parent), List(parent)
 classListTreeCheck2([], Classes, Outlist) :- Classes=Outlist.
-classListTreeCheck2([class(CName, object, _)|Rest], Classes, Outlist):-
+classListTreeCheck2([class(CName, object, _, _)|Rest], Classes, Outlist):-
   classListTreeCheck2(Rest, [parent(CName, object)|Classes], Outlist).
-classListTreeCheck2([class(CName, PName, _)|Rest], Classes, Outlist):-
+classListTreeCheck2([class(CName, PName, _, _)|Rest], Classes, Outlist):-
   classListTreeCheck2(Rest, [parent(CName, PName)|Classes], Outlist),
   member(parent(PName, _), Classes).
 
@@ -66,7 +74,7 @@ classListTreeCheck2([class(CName, PName, _)|Rest], Classes, Outlist):-
 % signature(className, methodName, arg, returnType, errors)
 
 classesMethodDescriptions([], Methods) :- Methods = [].
-classesMethodDescriptions([class(ClassName, _, CMethods)|Rest], Methods) :-
+classesMethodDescriptions([class(ClassName, _, _, CMethods)|Rest], Methods) :-
   classMethodDescriptions(ClassName, CMethods, TheseMethods),
   classesMethodDescriptions(Rest, RestMethods),
   append([TheseMethods, RestMethods], Methods).
@@ -94,8 +102,8 @@ getSignature(_, Class, Method, Descs, Sig) :-
   Sig = signature(Class, Method, Arg, Return, Errors).
 
 findClass(Name, Classes, OutClass) :-
-  member(class(Name, P, M), Classes),
-  OutClass = class(Name, P, M).
+  member(class(Name, P, F, M), Classes),
+  OutClass = class(Name, P, F, M).
 findSignature(CName, MName, Methods, OutSig) :-
   member(signature(CName, MName, Arg, Return, Errors), Methods),
   OutSig = signature(CName, MName, Arg, Return, Errors).
@@ -108,19 +116,21 @@ checkInheritance(Classes) :-
 % checkInheritanceAncestors : List(parent), List(class), List(class)
 checkInheritanceAncestors(_, _, []).
 checkInheritanceAncestors(Parents, AllClasses,
-    [class(CName, CParent, CMethods)|RestClasses]) :-
-  checkChildMethods(Parents, AllClasses, CParent, class(CName, CParent, CMethods)),
+    [class(CName, CParent, CFields, CMethods)|RestClasses]) :-
+  checkChildMethods(Parents, AllClasses, CParent,
+                    class(CName, CParent, CFields, CMethods)),
   checkInheritanceAncestors(Parents, AllClasses, RestClasses).
 
 % checkChildMethods : List(parent), List(class), className, class
 checkChildMethods(_, _, object, _).
 checkChildMethods(Parents, Classes, AncestorName,
-    class(CName, CParent, CMethods)) :-
-  findClass(AncestorName, Classes, class(AncestorName, AParent, AMethods)),
+    class(CName, CParent, CFields, CMethods)) :-
+  findClass(AncestorName, Classes,
+            class(AncestorName, AParent, CFields, AMethods)),
   classesMethodDescriptions(Classes, MethodDescs),
   checkMethods(MethodDescs, AncestorName, CName, AMethods, CMethods),
   checkChildMethods(Parents, Classes, AParent,
-    class(CName, CParent, CMethods)).
+    class(CName, CParent, CFields, CMethods)).
   
 checkMethods(_, _, _, _, []).
 checkMethods(MethodDescs, PName, CName, PMethods,
@@ -160,7 +170,7 @@ typecheckClasses(Parents, Methods, [Class|Classes]) :-
   typecheckClass(Parents, Methods, Class),
   typecheckClasses(Parents, Methods, Classes).
 
-typecheckClass(Parents, Methods, class(_, _, CMethods)) :-
+typecheckClass(Parents, Methods, class(_, _, _, CMethods)) :-
   typecheckMethods(Parents, Methods, CMethods).
 
 typecheckMethods(_, _, []).

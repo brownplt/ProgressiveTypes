@@ -7,18 +7,26 @@ test(wfe) :-
   wellFormedExpr(new(ponies)).
 
 test(wfc) :-
-  wellFormedClass(class(billy, billysDad, [])).
+  wellFormedClass(class(billy, billysDad, [], [])).
 
 test(wfa) :-
   wellFormedArg(arg(argName, aClass)).
 
 test(wfm) :-
-  wellFormedMethods([]).
+  wellFormedMethod(method(foo, arg(a, aClass),
+    new(aClass), aClass, [])).
 
-isAClass(class(aClass, aParent, [method(aMethod, 
-			arg(argName, aClass), var(aClass), aClass, [])|[]])).
+test(wff) :-
+  wellFormedField(field(fieldName, className)).
 
-test(wfc) :-
+isAClass(class(aClass, aParent, 
+  [ field(f, aClass) ],
+  [ method(aMethod, arg(argName, aClass),
+           var(aClass), aClass, [])|[]
+  ]
+)).
+
+test(wfc2) :-
   isAClass(X), wellFormedClass(X).
 
 isAnExpr(invoke(new(aClass), aMethod, new(aClass))).
@@ -31,30 +39,30 @@ test(wfp) :-
 
 % Cyclic tests
 
-parent(class(parentClass, childClass, [])).
+parent(class(parentClass, childClass, [], [])).
 
-child(class(childClass, parentClass, [])).
+child(class(childClass, parentClass, [], [])).
 
 test(badcyclic, [fail]) :-
   parent(P), child(C), classListTreeCheck([P, C], _).
 
 test(goodcyclic) :-
-  A = class(a, object, []),
-  B = class(b, a, []),
+  A = class(a, object, [], []),
+  B = class(b, a, [], []),
   classListTreeCheck([A, B], [parent(b,a), parent(a,object)]), !.
 
 test(methods1) :-
-  C = class(aClass, object, [
+  C = class(aClass, object, [], [
     method(getb, arg(b, bClass), var(b), bClass, [])
   ]),
   M = [signature(aClass, getb, arg(b, bClass), bClass, [])],
   classesMethodDescriptions([C], M), !.
 
 test(methods2) :-
-  A = class(aClass, object, [
+  A = class(aClass, object, [], [
     method(getb, arg(b, bClass), var(b), bClass, [])
   ]),
-  B = class(bClass, object, [
+  B = class(bClass, object, [], [
     method(geta, arg(a, aClass), var(a), aClass, [])
   ]),
   M = [signature(aClass, getb, arg(b, bClass), bClass, []),
@@ -63,35 +71,35 @@ test(methods2) :-
 
 % Getting the right signature
 
-parentWithFoo(class(parentClass, object, [
+parentWithFoo(class(parentClass, object, [], [
     method(foo, arg(p, parentClass), new(parentClass), parentClass, [])
 ])).
 
-goodChildWithFoo(class(goodChild, parentClass, [
+goodChildWithFoo(class(goodChild, parentClass, [], [
     method(foo, arg(p, parentClass), var(p), parentClass, [])
 ])).
 
-badChildWithFoo(class(badChild, parentClass, [
+badChildWithFoo(class(badChild, parentClass, [], [
     method(foo, arg(p, badChild), var(p), badChild, [])
 ])).
 
-childWithoutFoo(class(noFooChild, parentClass, [
+childWithoutFoo(class(noFooChild, parentClass, [], [
     method(noop, arg(p, parentClass), new(noFooChild), noFooChild, [])
 ])).
 
-noMethodsChild(class(noMethods, parentClass, [])).
+noMethodsChild(class(noMethods, parentClass, [], [])).
 
-goodFooGrandchild(class(goodFooGC, noMethods, [
+goodFooGrandchild(class(goodFooGC, noMethods, [], [
   method(foo, arg(p, parentClass), new(parentClass), parentClass, [])
 ])).
 
-badFooGrandchild(class(badFooGC, noMethods, [
+badFooGrandchild(class(badFooGC, noMethods, [], [
   method(foo, arg(p, parentClass), new(noMethods), noMethods, [])
 ])).
 
-noMethodsParent(class(noMethodsP, object, [])).
+noMethodsParent(class(noMethodsP, object, [], [])).
 
-fooChildNoMethodsParent(class(fooChild, noMethodsP, [
+fooChildNoMethodsParent(class(fooChild, noMethodsP, [], [
     method(foo, arg(p, parentClass), var(p), parentClass, [])
 ])).
 
@@ -144,39 +152,39 @@ test(badinvoke, [fail]) :-
     invoke(new(parentClass),foo,new(object)), _, _).
 
 test(badmethod, [fail]) :-
-  typecheck([class(aClass, object, [
+  typecheck([class(aClass, object, [], [
     method(foo, arg(p, object), new(aClass), object)
   ])], new(object), _, _).
 
 test(badmethod2, [fail]) :-
-  typecheck([class(aClass, object, [
+  typecheck([class(aClass, object, [], [
     method(foo, arg(p, object), new(aClass), aClass, []),
     method(foo, arg(p, object), new(aClass), object, [])
   ])], new(object), _, _).
   
 test(id, [nondet]) :-
-  typecheck([class(bClass, object, [
+  typecheck([class(bClass, object, [], [
     method(foo, arg(p, object), var(p), object, []),
     method(bar, arg(p, bClass), var(p), bClass, [])
   ])], new(object), _, _).
 
 % Cast examples
-intClass(class(integer, object, [])).
-colorClass(class(color, object, [])).
+intClass(class(integer, object, [], [])).
+colorClass(class(color, object, [], [])).
 
-pointClass(class(point, object, [
+pointClass(class(point, object, [], [
   method(getX, arg(unused, object), new(integer), integer, [])
 ])).
 
-pointClass2(class(point2d, point, [
+pointClass2(class(point2d, point, [], [
   method(getY, arg(unused, object), new(integer), integer, [])
 ])).
 
-pointClassC(class(pointC, point, [
+pointClassC(class(pointC, point, [], [
   method(getC, arg(unused, object), new(color), color, [])
 ])).
 
-shapeClass(class(shape, object, [])).
+shapeClass(class(shape, object, [], [])).
 
 exampleList(L) :-
   intClass(I),
@@ -200,7 +208,7 @@ test(point_to_pointc, [nondet]) :-
 test(point2d_object, [nondet]) :-
   exampleList(CS), typecheck(CS, cast(new(point2d), object), object, []).
 
-badCastingClass(class(badcast, object, [
+badCastingClass(class(badcast, object, [], [
   method(foo, arg(c, integer), cast(var(c), color), bottom, [errcrosscast])
 ])).
 
@@ -209,7 +217,7 @@ test(badcast, [nondet]) :-
   typecheck([I,C,B], invoke(cast(new(integer), badcast), foo,
     new(integer)), _, [errcrosscast]).
 
-badDeclaringClass(class(baddecl, object, [
+badDeclaringClass(class(baddecl, object, [], [
   method(throwsalot, arg(t, object), cast(var(t), integer), [])
 ])).
 
