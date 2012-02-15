@@ -1,3 +1,6 @@
+:- module(types0, [
+  type/3
+]).
 
 isType(nzInt).
 isType(nzniFlt).

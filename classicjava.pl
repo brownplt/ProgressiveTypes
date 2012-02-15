@@ -305,3 +305,4 @@ type(Context, A, cast(Expr, OtherClassName), bottom, Errors):-
   not(isAncestor(Parents, OtherClassName, EClassName)),
   Errors = [errcrosscast|EErrors].
 
+

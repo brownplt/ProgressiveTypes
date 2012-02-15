@@ -280,12 +280,19 @@ test(badcast, [nondet]) :-
     new(integer)), _, [errcrosscast]).
 
 badDeclaringClass(class(baddecl, object, [], [
-  method(throwsalot, arg(t, object), cast(var(t), integer), [])
+  method(throwsalot, arg(t, object), cast(var(t), integer), bottom, [])
 ])).
 
 test(baddecl, [fail]) :-
   badDeclaringClass(B), intClass(I),
     typecheck([I,B], new(object), _, _).
+
+nullLookupClass(class(nullLookup, object, [
+  field(f, object)
+], [
+  method(getF, arg(o, union(null, nullLookup)),
+          getfield(o, f), object, [errnullptrfield])
+])).
 
 :- end_tests(classicjava).
 
