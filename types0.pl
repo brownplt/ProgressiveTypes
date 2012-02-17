@@ -2,9 +2,13 @@
   type/4,
   subtype/2,
   typ_subst/4,
-  typ_equal/2
+  typ_equal/2,
+  ω_all/1,
+  univ/1,
+  apply/4
 ]).
 
+isType(⊥).
 isType(nzInt).
 isType(nzniFlt).
 isType(zero).
@@ -13,6 +17,35 @@ isType(arrow(S,T)) :- isType(S), isType(T).
 isType(μ(_,T)) :- isType(T).
 isType(tvar(_)).
 
+% The universal type.  Encompasses all "untyped" values---which includes
+% functions that annotate their argument with u.  If a function wants a
+% guarantee of more specific argument assumptions, the programmer needs
+% to work for them.
+univ(T) :-
+  T = μ(α, ∪(nzInt, 
+               ∪(nzniFlt,
+                 ∪(zero,
+                   arrow(tvar(α), tvar(α)))))).
+
+
+ω_all(L) :- L = [
+  errBadApp,
+  errPlusLambdaLeft,
+  errPlusLambdaRight,
+  errIPlusLambdaLeft,
+  errIPlusLambdaRight,
+  errDivLambdaLeft,
+  errDivLambdaRight,
+  errIPlusLeftFloatWithIntRight,
+  errIPlusLeftFloatWithZeroRight,
+  errIPlusRightFloatWithIntLeft,
+  errIPlusRightFloatWithZeroLeft,
+  errIPlusBothFloat,
+  errDivByZeroWithIntNumerator,
+  errDivByZeroWithFloatNumerator,
+  errDivByZeroWithZeroNumerator
+].
+
 type(_, _, nzIntConst, nzInt).
 type(_, _, nzFltConst, nzniFlt).
 type(_, _, zeroConst, zero).
@@ -20,6 +53,10 @@ type(_, _, zeroConst, zero).
 type(Ω, Env, subsume(E, T), T) :-
   type(Ω, Env, E, S),
   subtype(S, T).
+
+type(Ω, Env, let(X, Bind, Body), T) :-
+  type(Ω, Env, Bind, S),
+  type(Ω, [bind(X, S)|Env], Body, T).
 
 type(_ , [bind(V,T)|_ ], var(V), T).
 type(Ω, [bind(_,_)|Γ], var(V), T) :-
@@ -30,13 +67,24 @@ type(Ω, Γ, λ(X, S, Body), arrow(S, T)) :-
 
 type(Ω, Γ, app(Fun, Arg), TR) :-
   type(Ω, Γ, Fun, TF),
+  simpl_typ(TF, TF_simpl),
   type(Ω, Γ, Arg, TA),
-  apply(TF, TA, Ω, TR).
+  apply(TF_simpl, TA, Ω, TR).
 
 type(Ω, Γ, op(Op, E1, E2), T) :-
   type(Ω, Γ, E1, T1),
   type(Ω, Γ, E2, T2),
-  δ(Op, T1, T2, Ω, T).
+  simpl_typ(T1, T1_simpl),
+  simpl_typ(T2, T2_simpl),
+  δ(Op, T1_simpl, T2_simpl, Ω, T).
+
+simpl_typ(⊥, ⊥).
+simpl_typ(zero, zero).
+simpl_typ(nzInt, nzInt).
+simpl_typ(nzniFlt, nzniFlt).
+simpl_typ(∪(S, T), ∪(S, T)).
+simpl_typ(arrow(S, T), arrow(S, T)).
+simpl_typ(μ(X, T), S) :- typ_subst(X, μ(X, T), T, S).
 
 notBottom(zero).
 notBottom(nzInt).
@@ -44,6 +92,7 @@ notBottom(nzniFlt).
 notBottom(∪(S, _)) :- notBottom(S).
 notBottom(∪(_, T)) :- notBottom(T).
 notBottom(arrow(_, _)).
+notBottom(μ(_, T)) :- notBottom(T).
 
 apply(⊥,_,_,⊥).
 apply(_,⊥,_,⊥).
@@ -162,15 +211,15 @@ rec_subtype(Cache, arrow(S1, T1), arrow(S2, T2)) :-
 δ(iplus, nzniFlt, nzniFlt, Ω, ⊥) :-
   member(errIPlusBothFloat, Ω).
 δ(iplus, nzniFlt, nzInt, Ω, ⊥) :-
-  member(errIPlusLeftFloatWithIntright, Ω).
+  member(errIPlusLeftFloatWithIntRight, Ω).
 δ(iplus, nzInt, zero, _, nzInt).
 δ(iplus, nzInt, nzniFlt, Ω, ⊥) :-
   member(errIPlusRightFloatWithIntLeft, Ω).
 δ(iplus, nzInt, nzInt, _, nzInt).
 
-δ(iplus, arrow(_, _), _, Ω, errIPlusLambdaLeft) :-
+δ(iplus, arrow(_, _), _, Ω, ⊥) :-
   member(errIPlusLambdaLeft, Ω).
-δ(iplus, T, arrow(_, _), Ω, errIPlusLambdaRight) :-
+δ(iplus, T, arrow(_, _), Ω, ⊥) :-
   member(errIPlusLambdaRight, Ω),
   subtype(T, ∪(nzInt, zero)).
 
@@ -187,7 +236,9 @@ rec_subtype(Cache, arrow(S1, T1), arrow(S2, T2)) :-
 δ(div, nzInt, nzniFlt, _, ∪(nzniFlt, nzInt)).
 δ(div, nzInt, nzInt, _, ∪(nzniFlt, nzInt)).
 
-δ(div, arrow(_, _), _, errIPlusLambdaLeft).
-δ(div, T, arrow(_, _), errIPlusLambdaRight) :-
-  subtype(T, ∪(nzInt, ∪(nzniFlt, zero))).
+δ(div, arrow(_, _), _, Ω, ⊥) :-
+  member(errDivLambdaLeft, Ω).
+δ(div, T, arrow(_, _), Ω, ⊥) :-
+  subtype(T, ∪(nzInt, ∪(nzniFlt, zero))),
+  member(errDivLambdaRight, Ω).
 

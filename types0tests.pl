@@ -196,18 +196,8 @@ test(hungry, [nondet]) :-
     μ(z, arrow(nzInt, tvar(z)))
   ).
 
-% The universal type.  Encompasses all "untyped" values---which includes
-% functions that annotate their argument with u.  If a function wants a
-% guarantee of more specific argument assumptions, the programmer needs
-% to work for them.
-u(T) :-
-  T = μ(α, ∪(nzInt, 
-               ∪(nzniFlt,
-                 ∪(zero,
-                   arrow(tvar(α), tvar(α)))))).
-
 test(fμ, [nondet]) :-
-  u(T),
+  univ(T),
   subtype(
     arrow(T, nzInt),
     T
@@ -222,8 +212,56 @@ test(fμ_simpl, [nondet]) :-
 
 
 test(progtyp, [nondet]) :-
-  u(T),
-  
+  univ(T),
+  ω_all(Ω),
+  type(Ω, [],
+    λ(f, T,
+      λ(x, T,
+        subsume(app(var(f),
+          subsume(op(iplus, var(x), nzIntConst), T)), T))),
+    _).
+
+test(op_univ, [nondet]) :-
+  univ(T),
+  ω_all(Ω),
+  type(Ω, [bind(x, T)],
+    op(iplus, var(x), nzIntConst),
+    _).
+
+test(ω_all_simpl, [nondet]) :-
+  ω_all(Ω),
+  type(Ω, [], op(iplus, nzFltConst, nzIntConst), ⊥).
+
+test(ω_app, [nondet]) :-
+  univ(T),
+  ω_all(Ω),
+  type(Ω, [bind(f, T)], app(var(f), subsume(nzFltConst, T)), _).
+
+test(univ_subtyp, [nondet]) :-
+  univ(T),
+  type([], [], subsume(nzFltConst, T), T).
+
+test(univ_subtyp_direct, [nondet]) :-
+  univ(T),
+  type([], [bind(f, arrow(T, T)), bind(x, T)],
+    app(var(f), var(x)), T).
+
+test(univ_subtyp2, [nondet]) :-
+  univ(T),
+  type([], [bind(f, arrow(T, T))],
+    app(var(f), subsume(nzFltConst, T)), T).
+
+
+% Regression tests for missing a case in notBottom
+test(tenv, [nondet]) :-
+  univ(T),
+  type([errBadApp], [bind(f, arrow(T, T))],
+    var(f), arrow(T, T)).
+
+test(apply_univ, [nondet]) :-
+  univ(T),
+  apply(arrow(T, T), T, [], T).
+
 
 :- end_tests(types0).
 
