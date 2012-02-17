@@ -12,10 +12,6 @@ isType(arrow(S,T)) :- isType(S), isType(T).
 type(_, _, nzIntConst, nzInt).
 type(_, _, nzFltConst, nzniFlt).
 type(_, _, zeroConst, zero).
-type(Ω, Γ, if(Test, Then, Else), Tau) :-
-  type(Ω, Γ, Test, nzInt),
-  type(Ω, Γ, Then, Tau),
-  type(Ω, Γ, Else, Tau).
 
 type(Ω, Env, subsume(E, T), T) :-
   type(Ω, Env, E, S),
@@ -59,33 +55,6 @@ apply(arrow(T, S), T, _, S) :- notBottom(T).
 apply(zero, T, Ω, ⊥) :- notBottom(T), member(errBadApp, Ω).
 apply(nzInt, T, Ω, ⊥) :- notBottom(T), member(errBadApp, Ω).
 apply(nzniFlt, T, Ω, ⊥) :- notBottom(T), member(errBadApp, Ω).
-
-wftype(T) :- safe_canonical(T,T).
-
-safe_canonical(S, T) :- canonical(S,T).
-%  call_with_depth_limit(canonical(S, T), 3, R),
-%  not(=(R, depth_limit_exceeded)).
-
-canonical(nzInt, nzInt).
-canonical(nzniFlt, nzniFlt).
-canonical(zero, zero).
-
-canonical(∪(S1, T1), ∪(S2, T2)) :-
-  canonical(S1, S2), canonical(T1, T2),
-  not(subtype(S1, T1)), not(subtype(T1, S1)).
-
-canonical(Tc, ∪(S, T)) :- 
-  canonical(Sc, S),
-  canonical(Tc, T),
-  subtype(Sc, Tc).
-
-canonical(Sc, ∪(S, T)) :- 
-  canonical(Sc, S),
-  canonical(Tc, T),
-  subtype(Tc, Sc).
-
-canonical(arrow(S1, T1), arrow(S2, T2)) :-
-  canonical(S1, S2), canonical(T1, T2).
 
 subtype(T, T).
 subtype(⊥, _).
