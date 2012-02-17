@@ -196,6 +196,10 @@ test(hungry, [nondet]) :-
     μ(z, arrow(nzInt, tvar(z)))
   ).
 
+% The universal type.  Encompasses all "untyped" values---which includes
+% functions that annotate their argument with u.  If a function wants a
+% guarantee of more specific argument assumptions, the programmer needs
+% to work for them.
 u(T) :-
   T = μ(α, ∪(nzInt, 
                ∪(nzniFlt,
@@ -215,6 +219,11 @@ test(fμ_simpl, [nondet]) :-
     arrow(T, nzInt),
     T
   ).
+
+
+test(progtyp, [nondet]) :-
+  u(T),
+  
 
 :- end_tests(types0).
 

@@ -86,7 +86,8 @@ typ_subst(X, _, μ(X, T), μ(X, T)). % Variable is shadowed
 % typ_equal :: S: type, T: type 
 % Checks equality, correctly handling binding of μ-types.  Note that in
 % the case of μ, we don't check that the variables are non-equal before
-% recurring with substitution.
+% recurring with substitution.  This is quite non-deterministic, and can
+% find several ways to determine that two types are equal.
 typ_equal(T, T).
 typ_equal(μ(X, S), μ(X, T)) :- typ_equal(S, T).
 typ_equal(μ(X, S), μ(Y, T)) :-
