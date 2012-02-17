@@ -113,14 +113,108 @@ test(badappunion, [fail]) :-
     _
   ).
 
-test(appfunion, [nondet]) :-
+test(appfunion, all(X == [∪(zero, nzInt)])) :-
   type(
     [],
     [bind(f, ∪(arrow(zero, zero), arrow(zero, nzInt)))],
     app(var(f), zeroConst),
-    ∪(zero, nzInt)
+    X
   ).
 
+test(tsubst1, all(X == [nzInt])) :-
+  typ_subst(x, nzInt, tvar(x), X).
+
+test(tsubst2, all(X == [∪(nzInt, zero)])) :-
+  typ_subst(x, nzInt, ∪(tvar(x), zero), X).
+
+test(tsubst3, all(X == [μ(x, tvar(x))])) :-
+  typ_subst(x, zero, μ(x, tvar(x)), X).
+
+test(tsubst4, all(X == [μ(y, zero)])) :-
+  typ_subst(x, zero, μ(y, tvar(x)), X).
+
+test(tsubst5, all(X == [tvar(y)])) :-
+  typ_subst(x, zero, tvar(y), X).
+
+test(tsubst6, all(X == [μ(y, μ(z, zero))])) :-
+  typ_subst(x, zero, μ(y, μ(z, tvar(x))), X).
+
+test(tsubst7, all(X == [zero])) :-
+  typ_subst(x, _, zero, X).
+
+test(tsubst8, all(X == [arrow(μ(y, zero), nzInt)])) :-
+  typ_subst(x, zero, arrow(μ(y, tvar(x)), nzInt), X).
+
+
+test(tequal1, set(X == [∪(tvar(x), nzInt)])) :-
+  typ_equal(μ(y, ∪(tvar(y), nzInt)), μ(x, X)).
+
+test(tequal_union, set(X == [∪(tvar(x), nzInt)])) :-
+  typ_equal(∪(tvar(x), nzInt), X).
+
+test(tequal_simpl_union, set(X == [∪(zero, nzInt)])) :-
+  typ_equal(∪(zero, nzInt), X).
+
+test(tequal2, [fail]) :-
+  typ_equal(tvar(x), tvar(y)).
+
+test(tequal3, [fail]) :-
+  typ_equal(μ(x, μ(y, ∪(zero, tvar(x)))),
+            μ(x, μ(y, ∪(zero, tvar(y))))).
+
+test(tequal3, set(X == [∪(tvar(x), tvar(y))])) :-
+  typ_equal(μ(x, μ(y, ∪(tvar(x), tvar(y)))),
+            μ(x, μ(y, X))).
+
+test(μ1, [nondet]) :-
+  subtype(
+    μ(x, ∪(tvar(x), nzInt)),
+    ∪(μ(x, ∪(tvar(x), nzInt)), nzInt)
+  ).
+
+test(μ2, [nondet]) :-
+  subtype(
+    μ(x, arrow(tvar(x), tvar(x))),
+    arrow(μ(x, arrow(tvar(x), tvar(x))), μ(x, arrow(tvar(x), tvar(x))))
+  ).
+
+test(μ3, [nondet]) :-
+  subtype(
+    arrow(
+      μ(x, arrow(tvar(x), tvar(x))),
+      μ(y, arrow(tvar(y), tvar(y)))
+    ),
+    μ(x, arrow(tvar(x), tvar(x)))
+  ).
+
+test(hungry, [nondet]) :-
+  subtype(
+    arrow(nzInt,
+      arrow(nzInt,
+        arrow(nzInt,
+          μ(z, arrow(nzInt, tvar(z)))))),
+    μ(z, arrow(nzInt, tvar(z)))
+  ).
+
+u(T) :-
+  T = μ(α, ∪(nzInt, 
+               ∪(nzniFlt,
+                 ∪(zero,
+                   arrow(tvar(α), tvar(α)))))).
+
+test(fμ, [nondet]) :-
+  u(T),
+  subtype(
+    arrow(T, nzInt),
+    T
+  ).
+
+test(fμ_simpl, [nondet]) :-
+  T = μ(z, ∪(nzInt, ∪(nzniFlt, arrow(tvar(z), tvar(z))))),
+  subtype(
+    arrow(T, nzInt),
+    T
+  ).
 
 :- end_tests(types0).
 
