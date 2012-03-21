@@ -17,7 +17,7 @@
   [(subst x v x) v]
   [(subst x v y) y]
   [(subst x v (λ (x) e)) (λ (x) e)]
-  [(subst x v (λ (y) e)) (λ (x) (subst x v e))]
+  [(subst x v (λ (y) e)) (λ (y) (subst x v e))]
   [(subst x v c) c]
   [(subst x v number) number]
   [(subst x v (err ω)) (err ω)]
@@ -45,14 +45,14 @@
   [(fv (λ (x) e) (x_1 ...))
     (fv e (x x_1 ...))]
   [(fv (e_1 e_2) (x ...))
-    (∪ (fv e_1 (x ...)) (fv e_2 (x ...)))])
+    (join (fv e_1 (x ...)) (fv e_2 (x ...)))])
 
 (define-metafunction λmath
-  ∪ : (x ...) ... -> (x ...)
-  [(∪) ()]
-  [(∪ (x_1 ...)) (x_1 ...)]
-  [(∪ (x_1 ...) (x_2 ...) (x_3 ...) ...)
-   (∪ (x_1 ...   x_2 ...) (x_3 ...) ...)])
+  join : (x ...) ... -> (x ...)
+  [(join) ()]
+  [(join (x_1 ...)) (x_1 ...)]
+  [(join (x_1 ...) (x_2 ...) (x_3 ...) ...)
+   (join (x_1 ...   x_2 ...) (x_3 ...) ...)])
 
 (define eval-λmath
   (reduction-relation λmath
@@ -67,5 +67,4 @@
    with
     [(--> (in-hole E e_1) (in-hole E e_2))
      (==> e_1 e_2)]))
-
 
