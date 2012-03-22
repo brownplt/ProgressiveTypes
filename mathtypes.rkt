@@ -88,10 +88,99 @@
   [(extend-Γ ((y τ_1) ...) x τ_2) ((x τ_2) (y τ_1) ...)])
 
 (define-relation λmathτ
+  subtype ⊆ τ × τ
+  [(subtype τ_1 τ_2) (subtype-c () τ_1 τ_2)])
+
+(define-relation λmathτ
   ;; Three inputs: cache, and two types
-  subtype ⊆ ((τ τ) ...) × τ × τ
+  subtype-c ⊆ ((τ τ) ...) × τ × τ
   ;; subtyping succeeds for elements that match in the cache
-  [(subtype ((τ_1 τ_2) ... (τ_i τ_j) (τ_m τ_n) ...) τ_i τ_j)])
+  [(subtype-c ((τ_1 τ_2) ... (τ_i τ_j) (τ_m τ_n) ...) τ_i τ_j)]
+
+  ;; S-Refl
+  [(subtype-c any τ τ)]
+
+  ;; S-Bot
+  [(subtype-c any ⊥ τ)]
+
+  ;; S-Fold
+  [(subtype-c ((τ_1 τ_2) ...) (μ x τ_3) τ_4)
+   (subtype-c (((μ x τ_3) τ_4) (τ_1 τ_2) ...)
+              (typ-subst x (μ x τ_3) τ_3)
+              τ_4)]
+
+  ;; S-Unfold
+  [(subtype-c ((τ_1 τ_2) ...) τ_3 (μ x τ_4))
+   (subtype-c ((τ_3 (μ x τ_4)) (τ_1 τ_2) ...)
+              τ_3
+              (typ-subst x (μ x τ_4) τ_4))]
+
+  ;; S-Union-L
+  [(subtype-c ((τ_1 τ_2) ...) τ_L (τ_R1 ∪ τ_R2))
+   (subtype-c ((τ_L (τ_R1 ∪ τ_R2)) (τ_1 τ_2) ...) τ_L τ_R1)]
+
+  ;; S-Union-R
+  [(subtype-c ((τ_1 τ_2) ...) τ_L (τ_R1 ∪ τ_R2))
+   (subtype-c ((τ_L (τ_R1 ∪ τ_R2)) (τ_1 τ_2) ...) τ_L τ_R2)]
+
+  ;; S-Union-Join
+  [(subtype-c ((τ_1 τ_2) ...) (τ_L1 ∪ τ_L2) τ_R)
+   (subtype-c (((τ_L1 ∪ τ_L2) τ_R) (τ_1 τ_2) ...) τ_L1 τ_R)
+   (subtype-c (((τ_L1 ∪ τ_L2) τ_R) (τ_1 τ_2) ...) τ_L2 τ_R)]
+
+  ;; S-Inter-L
+  [(subtype-c ((τ_1 τ_2) ...) (τ_L1 ∩ τ_L2) τ_R)
+   (subtype-c (((τ_L1 ∩ τ_L2) τ_R) (τ_1 τ_2) ...) τ_L1 τ_R)]
+
+  ;; S-Inter-R
+  [(subtype-c ((τ_1 τ_2) ...) (τ_L1 ∩ τ_L2) τ_R)
+   (subtype-c (((τ_L1 ∩ τ_L2) τ_R) (τ_1 τ_2) ...) τ_L2 τ_R)]
+  
+  ;; S-Inter-Join
+  [(subtype-c ((τ_1 τ_2) ...) τ_L (τ_R1 ∩ τ_R2))
+   (subtype-c ((τ_L (τ_R1 ∩ τ_R2)) (τ_1 τ_2) ...) τ_L τ_R1)
+   (subtype-c ((τ_L (τ_R1 ∩ τ_R2)) (τ_1 τ_2) ...) τ_L τ_R2)]
+
+  ;; S-Arrow
+  [(subtype-c ((τ_i τ_j) ...) (τ_1 → Ω_1 τ_2) (τ_3 → Ω_2 τ_4))
+   (subtype-c (((τ_1 → Ω_1 τ_2) (τ_3 → Ω_2 τ_4)) (τ_i τ_j) ...)
+              τ_2 τ_4)
+   (subtype-c (((τ_1 → Ω_1 τ_2) (τ_3 → Ω_2 τ_4)) (τ_i τ_j) ...)
+              τ_3 τ_1)
+   ;; inclusion by Racket lists
+   (side-condition
+      (every (λ (ω) (member ω (term Ω_1))) (term Ω_2)))]
+
+  ;; S-Inter-Arrow
+  [(subtype-c any
+              ((τ_1 → Ω τ) ∩ (τ_2 → Ω τ))
+              ((τ_1 ∪ τ_2) → Ω τ))]
+
+  ;; S-Inter-Arrow2
+  ;; Trying more algorithmic versions (going off the rails?)
+  [(subtype-c any
+              ((τ_1 → (ω_1 ...) τ_3) ∩ (τ_2 → (ω_2 ...) τ_4))
+              ((τ_1 ∪ τ_2) → (ω_1 ... ω_2 ...) (τ_3 ∪ τ_4)))]
+
+  ;; S-Inter-Arrow3
+  [(subtype-c ((τ_i τ_j) ...)
+              ((τ_1 → (ω_1 ...) τ_3) ∩ (τ_2 → (ω_2 ...) τ_4))
+              ((τ_1 ∪ τ_2) → (ω_1 ... ω_2 ...) τ_3))
+   (subtype-c ((((τ_1 → (ω_1 ...) τ_3) ∩ (τ_2 → (ω_2 ...) τ_4))
+                ((τ_1 ∪ τ_2) → (ω_1 ... ω_2 ...) τ_3))
+               (τ_i τ_j) ...)
+              τ_4 τ_3)]
+                
+  ;; S-Inter-Arrow4
+  [(subtype-c ((τ_i τ_j) ...)
+              ((τ_1 → (ω_1 ...) τ_3) ∩ (τ_2 → (ω_2 ...) τ_4))
+              ((τ_1 ∪ τ_2) → (ω_1 ... ω_2 ...) τ_4))
+   (subtype-c ((((τ_1 → (ω_1 ...) τ_3) ∩ (τ_2 → (ω_2 ...) τ_4))
+                ((τ_1 ∪ τ_2) → (ω_1 ... ω_2 ...) τ_3))
+               (τ_i τ_j) ...)
+              τ_3 τ_4)]
+
+)
 
 (define-relation λmathτ
   ;; Variables seen and a type

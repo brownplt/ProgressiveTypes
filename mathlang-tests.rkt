@@ -82,7 +82,6 @@
 (check-equal? (term (typ-subst α Z (μ α (α → () α))))
               (term (μ α (α → () α))))
 
-
 (check-false (term (wf-type () (μ α α))))
 (check-false (term (wf-type () α)))
 (check-false (term (wf-type () (μ α (μ β α)))))
@@ -90,6 +89,64 @@
 
 (check-true (term (wf-type () (μ α (μ β (α ∪ β))))))
 (check-true (term (wf-type () (μ α (μ β (α ∪ Z))))))
+
+
+(check-true (term (subtype N N)))
+(check-true (term (subtype ⊥ ⊥)))
+(check-true (term (subtype ⊥ Z)))
+
+(check-true (term (subtype N (N ∪ Z))) "Easy union")
+(check-true (term (subtype N (Z ∪ N))) "Easy union")
+
+(check-true (term (subtype N (μ α (α ∪ N))))
+            "Easy μ-Union")
+
+(check-true (term (subtype (μ α (α ∪ N)) (μ β (β ∪ N))))
+            "α-renaming (literally)")
+
+;; Brain twister that both of these work.  Confirmed on paper
+(check-true (term (subtype (μ β ((β → () N) → () N))
+                           (μ α (α → () N))))
+            "Expansion type 1")
+(check-true (term (subtype (μ β (β → () N))
+                            (μ α ((α → () N) → () N))))
+            "Expansion type 2")
+
+;; If you change the scheme, trigger contravariance
+(check-false (term (subtype (μ β (β → () N))
+                            (μ α ((N → () α) → () N))))
+            "Expansion type, fail for contravariance")
+
+(check-true (term (subtype ((N → () Z) ∩ (Z → () Z))
+                              (N → () Z)))
+            "Simple intersection")
+
+(check-true (term (subtype ((N → () N) ∪ (N → () N))
+                              (N → () N)))
+            "Simple union join")
+(check-true (term (subtype ((N → () Z) ∪ (N → () N))
+                              (N → () (N ∪ Z))))
+            "Trickier union join")
+
+(check-true (term (subtype ((N ∪ Z) → () Z) (N → () Z)))
+             "Contravariance simple")
+
+(check-true (term (subtype (N → () Z) (N → () (N ∪ Z))))
+             "Covariance simple")
+
+(check-true (term (subtype ((N ∪ Z) → () Z) (N → () (N ∪ Z))))
+             "Co and contra simple")
+
+(check-false (term (subtype (N → () Z) ((N ∪ Z) → () Z)))
+             "Contravariance sanity")
+
+(check-true (term (subtype ((N → () Z) ∩ (Z → () Z))
+                              ((N ∪ Z) → () Z)))
+            "Inter-Arrow")
+
+(check-true (term (subtype ((N → () N) ∩ (Z → (div-0) ⊥))
+                              ((N ∪ Z) → (div-0) N)))
+            "Inter-Arrow, trickier")
 
 
 (define ((check-termτ rr) e)
