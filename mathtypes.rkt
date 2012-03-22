@@ -1,13 +1,21 @@
 #lang racket
 
+;; TODO
+;; - δτ to give back the intersections
+;; - subtyping
+;; - subsumption (probably explicit expr)
+;; - μ-types
+
 (require redex)
 (require srfi/1)
 (require "mathlang.rkt")
 (provide (all-defined-out))
 
+;; TODO(joe): investigate why α and (variable-not-otherwise-mentioned)
+;; behave strangely, requiring use of x for type idents
 (define-extended-language λmathτ λmath
   (v (λ (x τ Ω) e) prim)
-  (τ Z N (τ ∪ τ) ⊥ ⊤ σ)
+  (τ Z N (τ ∪ τ) ⊥ (μ x τ) x σ)
   (σ (σ ∩ σ) (τ → Ω τ))
   (Γ ((x τ) ...))
   (Ω (ω ...)))
@@ -78,4 +86,63 @@
 (define-metafunction λmathτ
   extend-Γ : Γ x τ -> Γ
   [(extend-Γ ((y τ_1) ...) x τ_2) ((x τ_2) (y τ_1) ...)])
+
+(define-relation λmathτ
+  ;; Three inputs: cache, and two types
+  subtype ⊆ ((τ τ) ...) × τ × τ
+  ;; subtyping succeeds for elements that match in the cache
+  [(subtype ((τ_1 τ_2) ... (τ_i τ_j) (τ_m τ_n) ...) τ_i τ_j)])
+
+(define-relation λmathτ
+  ;; Variables seen and a type
+  wf-type ⊆ (x ...) × τ
+  [(wf-type (x ...) N)]
+  [(wf-type (x ...) Z)]
+  [(wf-type (x ...) ⊥)]
+
+  [(wf-type (x_1 ... x_i x_n ...) x_i)]
+
+  [(wf-type (x ...) (μ y (τ_1 → Ω τ_2)))
+   (wf-type (y x ...) τ_1)
+   (wf-type (y x ...) τ_2)]
+  [(wf-type (x ...) (μ y (τ_1 ∪ τ_2)))
+   (wf-type (y x ...) τ_1)
+   (wf-type (y x ...) τ_2)]
+  [(wf-type (x ...) (μ y (τ_1 ∩ τ_2)))
+   (wf-type (y x ...) τ_1)
+   (wf-type (y x ...) τ_2)]
+  [(wf-type (x ...) (μ y (μ z τ)))
+   (wf-type (y x ...) (μ z τ))]
+
+  [(wf-type (x ...) (τ_1 → Ω τ_2))
+   (wf-type (x ...) τ_1)
+   (wf-type (x ...) τ_2)]
+  [(wf-type (x ...) (τ_1 ∪ τ_2))
+   (wf-type (x ...) τ_1)
+   (wf-type (x ...) τ_2)]
+  [(wf-type (x ...) (τ_1 ∩ τ_2))
+   (wf-type (x ...) τ_1)
+   (wf-type (x ...) τ_2)])
+  
+
+(define-metafunction λmathτ
+  typ-subst : x τ τ -> τ
+  [(typ-subst x τ N) N]
+  [(typ-subst x τ Z) Z]
+  [(typ-subst x τ ⊥) ⊥]
+
+  [(typ-subst x τ x) τ]
+  [(typ-subst x_1 τ x_2) x_2]
+
+  [(typ-subst x τ_1 (μ x τ_2)) (μ x τ_2)]
+  [(typ-subst x_1 τ_1 (μ x_2 τ_2))
+   (μ x_2 (typ-subst x_1 τ_1 τ_2))]
+
+  [(typ-subst x τ_1 (τ_2 → Ω τ_3))
+   ((typ-subst x τ_1 τ_2) → Ω (typ-subst x τ_1 τ_3))]
+
+  [(typ-subst x τ_1 (τ_2 ∪ τ_3))
+   ((typ-subst x τ_1 τ_2) ∪ (typ-subst x τ_1 τ_3))]
+  [(typ-subst x τ_1 (τ_2 ∩ τ_3))
+   ((typ-subst x τ_1 τ_2) ∩ (typ-subst x τ_1 τ_3))])
 

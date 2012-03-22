@@ -72,6 +72,26 @@
   (λ () (judgment-holds
   (type (app-n) ((f (N → (app-0) N))) (f 4) τ) τ)))
 
+(check-equal? (term (typ-subst somevar N somevar)) (term N))
+(check-equal? (term (typ-subst somevar N anothervar)) (term anothervar))
+(check-equal? (term (typ-subst somevar Z N)) (term N))
+(check-equal? (term (typ-subst α Z (α → (div-0) N)))
+              (term (Z → (div-0) N)))
+(check-equal? (term (typ-subst α Z (μ β (β → () α))))
+              (term (μ β (β → () Z))))
+(check-equal? (term (typ-subst α Z (μ α (α → () α))))
+              (term (μ α (α → () α))))
+
+
+(check-false (term (wf-type () (μ α α))))
+(check-false (term (wf-type () α)))
+(check-false (term (wf-type () (μ α (μ β α)))))
+(check-false (term (wf-type () (μ α (N ∪ (μ β α))))))
+
+(check-true (term (wf-type () (μ α (μ β (α ∪ β))))))
+(check-true (term (wf-type () (μ α (μ β (α ∪ Z))))))
+
+
 (define ((check-termτ rr) e)
   (or (not (empty? ((term-match λmathτ
                       [(err ω) #t]
@@ -79,7 +99,7 @@
                       e)))
       (not (empty? (apply-reduction-relation rr e)))))
 
-(check-reduction-relation eval-λmathτ (check-termτ eval-λmathτ)
+#;(check-reduction-relation eval-λmathτ (check-termτ eval-λmathτ)
   #:attempts 1000
   ;; just give a plain value if it generates something initially
   ;; containing a free variable
