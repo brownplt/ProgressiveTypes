@@ -148,6 +148,11 @@
                               ((N ∪ Z) → (div-0) N)))
             "Inter-Arrow, trickier")
 
+(check-true (term (subtype
+  ((N → () N) ∩ ((Z → (div-0) ⊥) ∩ ((⊥ → () Z) → (div-λ) ⊥)))
+  ((N ∪ Z) → (div-0) N)))
+  "Inter-Arrow, even trickier")
+
 
 (define ((check-termτ rr) e)
   (or (not (empty? ((term-match λmathτ
