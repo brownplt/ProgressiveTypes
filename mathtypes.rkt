@@ -2,9 +2,7 @@
 
 ;; TODO
 ;; - δτ to give back the intersections
-;; - subtyping
 ;; - subsumption (probably explicit expr)
-;; - μ-types
 
 (require redex)
 (require srfi/1)
