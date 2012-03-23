@@ -3,7 +3,8 @@
 (require redex)
 (require "mathtypes.rkt")
 
-(define harper (term (μ α (N ∪ (Z ∪ (α → ,Ω* α))))))
+(define Ω* '(div-0 div-0 div-λ add-λ app-n app-0))
+(define univ (term (μ α (N ∪ (Z ∪ (⊥ → ,Ω* α))))))
 
 (define BADTYPES 0)
 (define (check-subtype τ)

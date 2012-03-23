@@ -36,12 +36,32 @@
     (let ([vars (term (fv ,e ()))])
       (if (not (empty? vars))
             (foldr (λ (x e)
-              (term (subst ,x ,(generate-term λmath prim 5) ,e)))
+              (term (subst ,x ,(generate-term λmath number 5) ,e)))
               e vars)
           e))))
 
 (check-equal? (judgment-holds (type () () 5 τ) τ) (list (term N)))
 (check-true (judgment-holds (type () () 0 Z)))
+(check-true (judgment-holds (type (div-0) () 0 Z)))
+
+
+(define Ω* (term (div-0 div-λ add-λ app-n app-0)))
+(define harper (term (μ α (N ∪ (Z ∪ (α → ,Ω* α))))))
+
+(check-equal? (judgment-holds (type ,Ω* () (0 0) τ) τ)
+              (list (term ⊥)))
+(check-equal? (judgment-holds (type ,Ω* () (0 1) τ) τ)
+              (list (term ⊥)))
+(check-equal? (judgment-holds (type ,Ω* () (1 1) τ) τ)
+              (list (term ⊥)))
+(check-equal? (judgment-holds (type ,Ω* () (1 0) τ) τ)
+              (list (term ⊥)))
+(check-equal? (judgment-holds (type ,Ω* () (2 1) τ) τ)
+              (list (term ⊥)))
+(check-equal? (judgment-holds (type ,Ω* () (2 0) τ) τ)
+              (list (term ⊥)))
+(check-equal? (judgment-holds (type ,Ω* () (1 2) τ) τ)
+              (list (term ⊥)))
 
 (check-true (judgment-holds (type () ((x N)) x N)))
 (check-true (judgment-holds (type () ((y Z) (x N)) x N)))
@@ -71,6 +91,14 @@
 (check-exn #rx"appli: no clauses"
   (λ () (judgment-holds
   (type (app-n) ((f (N → (app-0) N))) (f 4) τ) τ)))
+
+(check-equal? (judgment-holds
+  (type ,Ω* () ((λ (f ,harper ,Ω*) 0)
+                 (λ (p ,harper ,Ω*) (0 4))) τ) τ)
+  (list (term Z)))
+
+
+
 
 (check-equal? (term (typ-subst somevar N somevar)) (term N))
 (check-equal? (term (typ-subst somevar N anothervar)) (term anothervar))
@@ -117,10 +145,6 @@
                             (μ α ((N → () α) → () N))))
             "Expansion type, fail for contravariance")
 
-(check-true (term (subtype ((N → () Z) ∩ (Z → () Z))
-                              (N → () Z)))
-            "Simple intersection")
-
 (check-true (term (subtype ((N → () N) ∪ (N → () N))
                               (N → () N)))
             "Simple union join")
@@ -143,19 +167,6 @@
 (check-false (term (subtype (N → () Z) ((N ∪ Z) → () Z)))
              "Contravariance sanity")
 
-(check-true (term (subtype ((N → () Z) ∩ (Z → () Z))
-                              ((N ∪ Z) → () Z)))
-            "Inter-Arrow")
-
-(check-true (term (subtype ((N → () N) ∩ (Z → (div-0) ⊥))
-                              ((N ∪ Z) → (div-0) N)))
-            "Inter-Arrow, trickier")
-
-(check-true (term (subtype
-  ((N → () N) ∩ ((Z → (div-0) ⊥) ∩ ((⊥ → () Z) → (div-λ) ⊥)))
-  ((N ∪ Z) → (div-0) N)))
-  "Inter-Arrow, even trickier")
-
 (define ((check-termτ rr) e)
   (or (not (empty? ((term-match λmathτ
                       [(err ω) #t]
@@ -172,7 +183,7 @@
     (let ([vars (term (fvτ ,e ()))])
       (if (not (empty? vars))
             (foldr (λ (x e)
-              (term (substτ ,x ,(generate-term λmathτ prim 5) ,e)))
+              (term (substτ ,x ,(generate-term λmathτ number 5) ,e)))
               e vars)
           e))))
 

@@ -4,12 +4,11 @@
 (provide (all-defined-out))
 
 (define-language λmath
-  (prim number c)
-  (v (λ (x) e) prim)
-  (c ÷ +1)
-  (e v x (err ω) (e e))
-  (ω div-0 div-λ div-c add-λ add-c app-n app-0)
-  (E hole (E e) (v E))
+  (c ÷ plus1)
+  (v (λ (x) e) number)
+  (e v x (err ω) (e e) (c e))
+  (ω div-0 div-λ add-λ app-n app-0)
+  (E hole (E e) (v E) (c E))
   ((f g x y z) variable-not-otherwise-mentioned))
 
 (define-metafunction λmath
@@ -18,7 +17,7 @@
   [(subst x v y) y]
   [(subst x v (λ (x) e)) (λ (x) e)]
   [(subst x v (λ (y) e)) (λ (y) (subst x v e))]
-  [(subst x v c) c]
+  [(subst x v (c e)) (c (subst x v e))]
   [(subst x v number) number]
   [(subst x v (err ω)) (err ω)]
   [(subst x v (e_1 e_2)) ((subst x v e_1) (subst x v e_2))])
@@ -26,19 +25,19 @@
 (define-metafunction λmath
   δ : c v -> any
   [(δ ÷ 0) (err div-0)]
-  [(δ ÷ number) (/ 1 (term number))]
+  [(δ ÷ number) ,(/ 1 (term number))]
   [(δ ÷ (λ (x) e)) (err div-λ)]
   [(δ ÷ c) (err div-c)]
 
-  [(δ +1 number) (add1 (term number))]
-  [(δ +1 (λ (x) e)) (err div-λ)]
-  [(δ +1 c) (err div-c)])
+  [(δ plus1 number) ,(add1 (term number))]
+  [(δ plus1 (λ (x) e)) (err div-λ)]
+  [(δ plus1 c) (err div-c)])
 
 (define-metafunction λmath
   fv : e (x ...) -> (x ...)
   [(fv number (x ...)) ()]
   [(fv (err ω) (x ...)) ()]
-  [(fv c (x ...)) ()]
+  [(fv (c e) (x ...)) (fv e (x ...))]
   [(fv x_1 (x_2 ...)) (x_1)
     (side-condition (not (member (term x_1) (term (x_2 ...)))))]
   [(fv x_1 (x_2 ...)) ()]

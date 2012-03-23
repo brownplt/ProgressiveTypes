@@ -1,8 +1,10 @@
 #lang racket
 
 ;; TODO
-;; - δτ to give back the intersections
 ;; - subsumption (probably explicit expr)
+;; - wf-type should disallow ids in unions
+;;   - how cheap a trick is this?  Should we define δ and appli
+;;     co-inductively?
 
 (require redex)
 (require srfi/1)
@@ -12,9 +14,8 @@
 ;; TODO(joe): investigate why α and (variable-not-otherwise-mentioned)
 ;; behave strangely, requiring use of x for type idents
 (define-extended-language λmathτ λmath
-  (v (λ (x τ Ω) e) prim)
-  (τ Z N (τ ∪ τ) ⊥ (μ x τ) x σ)
-  (σ (σ ∩ σ) (τ → Ω τ))
+  (v (λ (x τ Ω) e) number)
+  (τ Z N (τ ∪ τ) ⊥ (μ x τ) x (τ → Ω τ))
   (Γ ((x τ) ...))
   (Ω (ω ...)))
 
@@ -42,11 +43,12 @@
 (define-metafunction/extension δ λmathτ
   δτ : c v -> any
   [(δτ ÷ (λ (x τ Ω) e)) (err div-λ)]
-  [(δτ +1 (λ (x τ Ω) e)) (err div-λ)])
+  [(δτ plus1 (λ (x τ Ω) e)) (err div-λ)])
 
 (define-judgment-form λmathτ
   ;; Three inputs: Ω, Γ, e, and yields a type τ
   #:mode (type I I I O)
+  [(type Ω Γ (err ω) ⊥) (where (ω_1 ... ω ω_n ...) Ω)]
   [(type Ω Γ 0 Z)]
   [(type Ω Γ (side-condition number (not (= 0 (term number)))) N)]
   [(type Ω Γ x (lookup-Γ Γ x))]
@@ -54,36 +56,55 @@
    (type Ω_2 (extend-Γ Γ x τ_1) e τ_2)]
   [(type Ω Γ (e_1 e_2) (appli τ_1 τ_2 Ω))
    (type Ω Γ e_1 τ_1) (type Ω Γ e_2 τ_2)]
-  [(type Ω Γ c (type-δ c))])
-
-(define Ω* '(div-0 div-0 div-λ div-c add-λ add-c app-n app-0))
-(define univ (term (μ α (N ∪ (Z ∪ (⊥ → ,Ω* α))))))
+  [(type Ω Γ (c e) (type-δ c τ Ω)) (type Ω Γ e τ)])
 
 (define-metafunction λmathτ
-  type-δ : c -> τ
-  [(type-δ ÷) ((N → () N) ∩ ((Z → (div-0) ⊥) ∩
-                  ((⊥ → ,Ω* ,univ) → (div-λ) ⊥)))]
-  [(type-δ +1) ((N → () (N ∪ Z)) ∩ ((Z → () N) ∩
-                  ((⊥ → ,Ω* ,univ) → (add-λ) ⊥)))])
+  type-δ : c τ Ω -> τ
+  [(type-δ c ⊥ Ω) ⊥]
+
+  [(type-δ c (μ x τ_1) Ω)
+   (type-δ c (typ-subst x (μ x τ_1) τ_1) Ω)]
+
+  [(type-δ c (τ_1 ∪ τ_2) Ω)
+   ((type-δ c τ_1 Ω) ∪ (type-δ c τ_2 Ω))]
+
+  [(type-δ ÷ N Ω) N]
+  [(type-δ ÷ Z Ω) ⊥
+   (side-condition (member (term div-0) (term Ω)))]
+  [(type-δ ÷ (τ_1 → Ω_1 τ_2) Ω) ⊥
+   (side-condition (member (term div-λ) (term Ω)))]
+
+  [(type-δ plus1 N Ω) (N ∪ Z)]
+  [(type-δ plus1 Z Ω) N]
+  [(type-δ plus1 (τ_1 → Ω_1 τ_2) Ω) ⊥
+   (side-condition (member (term add-λ) (term Ω)))]
+)
 
 (define-metafunction λmathτ
   appli : τ τ Ω -> τ
   [(appli ⊥ τ Ω) ⊥]
   [(appli τ ⊥ Ω) ⊥]
 
+  [(appli (μ x τ_1) τ_2 Ω)
+   (appli (typ-subst x (μ x τ_1) τ_1) τ_2 Ω)]
+  [(appli τ_1 (μ x τ_2) Ω)
+   (appli τ_1 (typ-subst x (μ x τ_2) τ_2) Ω)]
+
   [(appli (τ_1 ∪ τ_2) τ_3 Ω)
    ((appli τ_1 τ_3 Ω) ∪ (appli τ_2 τ_3 Ω))]
 
-  [(appli (τ_1 → Ω_2 τ_2) τ_1 Ω_1)
+  [(appli (τ_1 → Ω_2 τ_2) τ_3 Ω_1)
    τ_2
    ;; inclusion by Racket lists
+   (side-condition
+      (term (subtype τ_3 τ_1)))
    (side-condition
       (every (λ (ω) (member ω (term Ω_1))) (term Ω_2)))]
 
   [(appli Z τ Ω) ⊥
    (side-condition (member (term app-0) (term Ω)))]
   [(appli N τ Ω) ⊥
-   (side-condition (member (term app-N) (term Ω)))])
+   (side-condition (member (term app-n) (term Ω)))])
 
 (define-metafunction λmathτ
   lookup-Γ : Γ x -> τ
@@ -137,19 +158,6 @@
    (subtype-c (((τ_L1 ∪ τ_L2) τ_R) (τ_1 τ_2) ...) τ_L1 τ_R)
    (subtype-c (((τ_L1 ∪ τ_L2) τ_R) (τ_1 τ_2) ...) τ_L2 τ_R)]
 
-  ;; S-Inter-L
-  [(subtype-c ((τ_1 τ_2) ...) (τ_L1 ∩ τ_L2) τ_R)
-   (subtype-c (((τ_L1 ∩ τ_L2) τ_R) (τ_1 τ_2) ...) τ_L1 τ_R)]
-
-  ;; S-Inter-R
-  [(subtype-c ((τ_1 τ_2) ...) (τ_L1 ∩ τ_L2) τ_R)
-   (subtype-c (((τ_L1 ∩ τ_L2) τ_R) (τ_1 τ_2) ...) τ_L2 τ_R)]
-  
-  ;; S-Inter-Join
-  [(subtype-c ((τ_1 τ_2) ...) τ_L (τ_R1 ∩ τ_R2))
-   (subtype-c ((τ_L (τ_R1 ∩ τ_R2)) (τ_1 τ_2) ...) τ_L τ_R1)
-   (subtype-c ((τ_L (τ_R1 ∩ τ_R2)) (τ_1 τ_2) ...) τ_L τ_R2)]
-
   ;; S-Arrow
   [(subtype-c ((τ_i τ_j) ...) (τ_1 → Ω_1 τ_2) (τ_3 → Ω_2 τ_4))
    (subtype-c (((τ_1 → Ω_1 τ_2) (τ_3 → Ω_2 τ_4)) (τ_i τ_j) ...)
@@ -159,36 +167,6 @@
    ;; inclusion by Racket lists
    (side-condition
       (every (λ (ω) (member ω (term Ω_2))) (term Ω_1)))]
-
-  ;; S-Inter-Arrow
-  [(subtype-c any
-              ((τ_1 → Ω τ) ∩ (τ_2 → Ω τ))
-              ((τ_1 ∪ τ_2) → Ω τ))]
-
-  ;; S-Inter-Arrow2
-  ;; Trying more algorithmic versions (going off the rails?)
-  [(subtype-c any
-              ((τ_1 → (ω_1 ...) τ_3) ∩ (τ_2 → (ω_2 ...) τ_4))
-              ((τ_1 ∪ τ_2) → (ω_1 ... ω_2 ...) (τ_3 ∪ τ_4)))]
-
-  ;; S-Inter-Arrow3
-  [(subtype-c ((τ_i τ_j) ...)
-              ((τ_1 → (ω_1 ...) τ_3) ∩ (τ_2 → (ω_2 ...) τ_4))
-              ((τ_1 ∪ τ_2) → (ω_1 ... ω_2 ...) τ_3))
-   (subtype-c ((((τ_1 → (ω_1 ...) τ_3) ∩ (τ_2 → (ω_2 ...) τ_4))
-                ((τ_1 ∪ τ_2) → (ω_1 ... ω_2 ...) τ_3))
-               (τ_i τ_j) ...)
-              τ_4 τ_3)]
-                
-  ;; S-Inter-Arrow4
-  [(subtype-c ((τ_i τ_j) ...)
-              ((τ_1 → (ω_1 ...) τ_3) ∩ (τ_2 → (ω_2 ...) τ_4))
-              ((τ_1 ∪ τ_2) → (ω_1 ... ω_2 ...) τ_4))
-   (subtype-c ((((τ_1 → (ω_1 ...) τ_3) ∩ (τ_2 → (ω_2 ...) τ_4))
-                ((τ_1 ∪ τ_2) → (ω_1 ... ω_2 ...) τ_3))
-               (τ_i τ_j) ...)
-              τ_3 τ_4)]
-
 )
 
 (define-relation λmathτ
@@ -206,9 +184,6 @@
   [(wf-type (x ...) (μ y (τ_1 ∪ τ_2)))
    (wf-type (y x ...) τ_1)
    (wf-type (y x ...) τ_2)]
-  [(wf-type (x ...) (μ y (τ_1 ∩ τ_2)))
-   (wf-type (y x ...) τ_1)
-   (wf-type (y x ...) τ_2)]
   [(wf-type (x ...) (μ y (μ z τ)))
    (wf-type (y x ...) (μ z τ))]
 
@@ -217,10 +192,10 @@
    (wf-type (x ...) τ_2)]
   [(wf-type (x ...) (τ_1 ∪ τ_2))
    (wf-type (x ...) τ_1)
-   (wf-type (x ...) τ_2)]
-  [(wf-type (x ...) (τ_1 ∩ τ_2))
-   (wf-type (x ...) τ_1)
-   (wf-type (x ...) τ_2)])
+   (wf-type (x ...) τ_2)
+   (side-condition (empty? ((term-match λmathτ [x #t]) (term τ_1))))
+   (side-condition (empty? ((term-match λmathτ [x #t]) (term τ_2))))]
+)
   
 
 (define-metafunction λmathτ
@@ -241,6 +216,4 @@
 
   [(typ-subst x τ_1 (τ_2 ∪ τ_3))
    ((typ-subst x τ_1 τ_2) ∪ (typ-subst x τ_1 τ_3))]
-  [(typ-subst x τ_1 (τ_2 ∩ τ_3))
-   ((typ-subst x τ_1 τ_2) ∩ (typ-subst x τ_1 τ_3))])
-
+)
