@@ -134,6 +134,9 @@
 (check-true (term (subtype (N → () Z) (N → () (N ∪ Z))))
              "Covariance simple")
 
+(check-true (term (subtype (N → () Z) (N → (div-0) (N ∪ Z))))
+             "Covariance errors")
+
 (check-true (term (subtype ((N ∪ Z) → () Z) (N → () (N ∪ Z))))
              "Co and contra simple")
 
@@ -152,7 +155,6 @@
   ((N → () N) ∩ ((Z → (div-0) ⊥) ∩ ((⊥ → () Z) → (div-λ) ⊥)))
   ((N ∪ Z) → (div-0) N)))
   "Inter-Arrow, even trickier")
-
 
 (define ((check-termτ rr) e)
   (or (not (empty? ((term-match λmathτ
@@ -173,3 +175,4 @@
               (term (substτ ,x ,(generate-term λmathτ prim 5) ,e)))
               e vars)
           e))))
+

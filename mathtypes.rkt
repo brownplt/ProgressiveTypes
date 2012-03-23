@@ -53,7 +53,18 @@
   [(type Ω_1 Γ (λ (x τ_1 Ω_2) e) (τ_1 → Ω_2 τ_2))
    (type Ω_2 (extend-Γ Γ x τ_1) e τ_2)]
   [(type Ω Γ (e_1 e_2) (appli τ_1 τ_2 Ω))
-   (type Ω Γ e_1 τ_1) (type Ω Γ e_2 τ_2)])
+   (type Ω Γ e_1 τ_1) (type Ω Γ e_2 τ_2)]
+  [(type Ω Γ c (type-δ c))])
+
+(define Ω* '(div-0 div-0 div-λ div-c add-λ add-c app-n app-0))
+(define univ (term (μ α (N ∪ (Z ∪ (⊥ → ,Ω* α))))))
+
+(define-metafunction λmathτ
+  type-δ : c -> τ
+  [(type-δ ÷) ((N → () N) ∩ ((Z → (div-0) ⊥) ∩
+                  ((⊥ → ,Ω* ,univ) → (div-λ) ⊥)))]
+  [(type-δ +1) ((N → () (N ∪ Z)) ∩ ((Z → () N) ∩
+                  ((⊥ → ,Ω* ,univ) → (add-λ) ⊥)))])
 
 (define-metafunction λmathτ
   appli : τ τ Ω -> τ
@@ -147,7 +158,7 @@
               τ_3 τ_1)
    ;; inclusion by Racket lists
    (side-condition
-      (every (λ (ω) (member ω (term Ω_1))) (term Ω_2)))]
+      (every (λ (ω) (member ω (term Ω_2))) (term Ω_1)))]
 
   ;; S-Inter-Arrow
   [(subtype-c any
