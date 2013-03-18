@@ -1,6 +1,6 @@
 
 Inductive id : Type :=
-  | Id : nat -> Id
+  | Id : nat -> id
 .
 
 Inductive w : Type :=
@@ -11,9 +11,14 @@ Inductive w : Type :=
   | app_0 : w
 .
 
-Inductive expr : Type :=
-  | ENum : nat -> expr
-  | ELam : id -> expr -> expr
+Inductive value : Type :=
+  | VNum : nat -> value
+  | VLam : id -> expr -> value
+
+with
+
+expr : Type :=
+  | EVal : value -> expr
   | EVar : id -> expr
   | EErr : w -> expr
   | EApp : expr -> expr -> expr
@@ -21,5 +26,27 @@ Inductive expr : Type :=
   | EAdd : expr -> expr
 .
 
+Inductive cxt : Type :=
+  | EHole : cxt
+  | EAppFun : cxt -> expr -> cxt
+  | EAppArg : value  -> expr -> cxt -> cxt
+  | EDivArg : cxt -> cxt
+  | EAddArg : cxt -> cxt
+.
 
+Inductive ActExp : expr -> Prop :=
+  | ActDiv : forall n, ActExp (EDiv (EVal (VNum n)))
+  | ActAdd : forall n, ActExp (EAdd (EVal (VNum n)))
+  | ActApp : forall v1 v2, ActExp (EApp (EVal v1) (EVal v2))
+.
 
+(*Not Finished*)
+Inductive EDecomp : expr -> cxt -> expr -> Prop :=
+  | CxtHole : forall ae, ActExp ae -> EDecomp ae EHole ae
+  | CxtAppFun : forall EC efun earg ae,
+                   EDecomp efun EC ae -> 
+                   EDecomp (EApp efun earg) (EAppFun EC earg) ae
+. 
+(*Not Finished*)
+
+ 
