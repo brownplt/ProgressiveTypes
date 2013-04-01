@@ -1,4 +1,5 @@
 
+
 Inductive id : Type :=
   | Id : nat -> id
 .
@@ -11,13 +12,9 @@ Inductive w : Type :=
   | app_0 : w
 .
 
-Inductive value : Type :=
-  | VNum : nat -> value
-  | VLam : id -> expr -> value
-
-with
-
-expr : Type :=
+Inductive expr : Type :=
+  | ENum : nat -> expr
+  | ELam : id -> expr -> expr
   | EVal : value -> expr
   | EVar : id -> expr
   | EErr : w -> expr
@@ -25,6 +22,14 @@ expr : Type :=
   | EDiv : expr -> expr
   | EAdd : expr -> expr
 .
+
+Inductive aval : expr -> Prop :=
+  | av_num : forall n, aval (ENum n)
+  | av_lam : forall id expr, aval (ELam id expr)
+.
+
+
+
 
 Inductive cxt : Type :=
   | EHole : cxt
