@@ -23,9 +23,20 @@ Inductive c : Type :=
   | add : c
 .
 
+Inductive typ : Type :=
+  | TBot
+  | TZero : typ
+  | TNat : typ
+  | TUnion : typ -> typ -> typ
+  | TArrow : typ -> list w -> typ -> typ
+(* Come back to these *)
+(*| TRec : id -> typ -> typ
+  | TId : id -> typ *)
+.
+
 Inductive expr : Type :=
   | ENum : nat -> expr
-  | ELam : id -> expr -> expr
+  | ELam : id -> typ -> list w -> expr -> expr
   | EVar : id -> expr
   | EErr : w -> expr
   | EApp : expr -> expr -> expr
@@ -34,7 +45,7 @@ Inductive expr : Type :=
 
 Inductive aval : expr -> Prop :=
   | av_num : forall n, aval (ENum n)
-  | av_lam : forall id expr, aval (ELam id expr)
+  | av_lam : forall id typ ws expr, aval (ELam id typ ws expr)
 .
 
 
@@ -76,7 +87,8 @@ Fixpoint e_plug (c: cxt) (e: expr) : expr :=
 Fixpoint subst (x: id) (s: expr) (t: expr) : expr :=
   match t with
     | ENum n => ENum n
-    | ELam x2 e => if (beq_id x x2) then (t) else (ELam x2 (subst x s e)) 
+    | ELam x2 typ ws e =>
+      if (beq_id x x2) then (t) else (ELam x2 typ ws (subst x s e)) 
     | EVar x2 => if (beq_id x x2) then s else t
     | EErr err_w => EErr err_w
     | EApp e1 e2 =>EApp (subst x s e1) (subst x s e2)
@@ -93,15 +105,15 @@ Inductive delt : c -> expr -> expr -> Prop :=
    forall n, beq_nat n 0 = false ->
    delt div (ENum n) (ENum (int_reciprocal n))
  | DDivLam :
-   forall x e,
-   delt div (ELam x e) (EErr div_lam)
+   forall x typ ws e,
+   delt div (ELam x typ ws e) (EErr div_lam)
 
  | DAddN :
    forall n,
    delt add (ENum n) (ENum (S n))
  | DAddLam :
-   forall x e,
-   delt add (ELam x e) (EErr add_lam)
+   forall x typ ws e,
+   delt add (ELam x typ ws  e) (EErr add_lam)
 .
 
 Inductive step : expr -> expr -> Prop :=
@@ -115,9 +127,9 @@ Inductive step : expr -> expr -> Prop :=
    EDecomp e E (EErr w) ->
    step e (EErr w)
 
- | StepApp : forall x eb ea,
+ | StepApp : forall x typ ws eb ea,
    aval ea ->
-   step (EApp (ELam x eb) ea) (subst x ea eb)
+   step (EApp (ELam x typ ws eb) ea) (subst x ea eb)
  | StepAppNum : forall n ea,
    aval ea -> beq_nat n 0 = false ->
    step (EApp (ENum n) ea) (EErr app_n)
