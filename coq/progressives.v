@@ -84,28 +84,6 @@ Fixpoint subst (x: id) (s: expr) (t: expr) : expr :=
     end
 .
 
-(*
-(** 6. Finally, define the small-step relation.  Just one case
-   suffices for all valid decompositions of expressions! *)
-Reserved Notation " t '/' st '==>a' t' " (at level 40, st at level 39).
-Inductive astep : state -> aexp -> aexp -> Prop :=
-  | A_step : forall st a E aact a', 
-    Adecompose a E aact ->
-      aact / st ==>a a' ->
-      a / st ==>a (aexp_plug E a')
-
-  | AS_Id : forall st i, 
-      AId i / st ==>a ANum (st i)
-  | AS_Plus : forall st n1 n2,
-      APlus (ANum n1) (ANum n2) / st ==>a ANum (n1 + n2)
-  | AS_Minus : forall st n1 n2,
-      (AMinus (ANum n1) (ANum n2)) / st ==>a (ANum (minus n1 n2))
-  | AS_Mult : forall st n1 n2,
-      (AMult (ANum n1) (ANum n2)) / st ==>a (ANum (mult n1 n2))
-
-    where " t '/' st '==>a' t' " := (astep st t t').
-*)
-
 (* thatsthejoke.jpg *)
 Fixpoint int_reciprocal (n : nat) := 0.
 
@@ -127,10 +105,11 @@ Inductive delt : c -> expr -> expr -> Prop :=
 .
 
 Inductive step : expr -> expr -> Prop :=
- | StepCxt : forall e E ae ae',
+ | StepCxt : forall e E ae ae' ae'',
    EDecomp e E ae ->
    step ae ae' ->
-   step e (e_plug E ae')
+   ae'' = (e_plug E ae') ->
+   step e ae''
 
  | StepErr : forall e E w,
    EDecomp e E (EErr w) ->
@@ -158,4 +137,47 @@ Example step1 :
 Proof.
   apply StepPrim. apply av_num. apply DDivN. reflexivity.
 Qed.
+
+Definition relation (X: Type) := X->X->Prop.
+
+Inductive refl_step_closure {X:Type} (R: relation X) 
+                            : X -> X -> Prop :=
+  | rsc_refl  : forall (x : X),
+                 refl_step_closure R x x
+  | rsc_step : forall (x y z : X),
+                    R x y ->
+                    refl_step_closure R y z ->
+                    refl_step_closure R x z.
+
+Definition stepmany := refl_step_closure step.
+
+
+Example decomp1 :
+  EDecomp (EPrim div (EPrim add (ENum 2)))
+          (EPrimArg div EHole)
+          (EPrim add (ENum 2))
+.
+Proof.
+  apply CxtPrimArg. apply CxtHole. apply ActPrim. apply av_num.
+Qed.
+          
+
+Example step2 :
+  stepmany (EPrim div (EPrim add (ENum 2))) (ENum 0)
+.
+Proof.
+  apply rsc_step with (EPrim div (ENum 3)).
+  apply StepCxt with (E := EPrimArg div EHole)
+                     (ae := EPrim add (ENum 2))
+                     (ae' := ENum 3).
+  apply CxtPrimArg. apply CxtHole. apply ActPrim. apply av_num.
+
+  apply StepPrim. apply av_num. apply DAddN. reflexivity.
+
+  apply rsc_step with (ENum 0).
+  apply StepPrim. apply av_num. apply DDivN. reflexivity.
+
+  apply rsc_refl.
+Qed.
+
 
