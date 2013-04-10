@@ -105,11 +105,11 @@ Inductive delt : c -> expr -> expr -> Prop :=
 .
 
 Inductive step : expr -> expr -> Prop :=
- | StepCxt : forall e E ae ae' ae'',
+ | StepCxt : forall e E ae ae' e',
    EDecomp e E ae ->
    step ae ae' ->
-   ae'' = (e_plug E ae') ->
-   step e ae''
+   e' = (e_plug E ae') ->
+   step e e'
 
  | StepErr : forall e E w,
    EDecomp e E (EErr w) ->
