@@ -1,4 +1,5 @@
 Require Export Arith.EqNat.
+Require Export QArith.
 Require Export List.
 
 Inductive id : Type :=
@@ -18,6 +19,17 @@ Inductive w : Type :=
   | app_0 : w
 .
 
+Fixpoint beq_w w w' :=
+  match w, w' with
+    | div_0, div_0 => true
+    | div_lam, div_lam => true
+    | add_lam, add_lam => true
+    | app_n, app_n => true
+    | app_0, app_0 => true
+    | _, _ => false
+end
+.
+
 Inductive c : Type :=
   | div : c
   | add : c
@@ -26,7 +38,7 @@ Inductive c : Type :=
 Inductive typ : Type :=
   | TBot
   | TZero : typ
-  | TNat : typ
+  | TNum : typ
   | TUnion : typ -> typ -> typ
   | TArrow : typ -> list w -> typ -> typ
 (* Come back to these *)
@@ -35,7 +47,7 @@ Inductive typ : Type :=
 .
 
 Inductive expr : Type :=
-  | ENum : nat -> expr
+  | ENum : Q -> expr
   | ELam : id -> typ -> list w -> expr -> expr
   | EVar : id -> expr
   | EErr : w -> expr
@@ -96,21 +108,18 @@ Fixpoint subst (x: id) (s: expr) (t: expr) : expr :=
     end
 .
 
-(* thatsthejoke.jpg *)
-Fixpoint int_reciprocal (n : nat) := 0.
-
 Inductive delt : c -> expr -> expr -> Prop :=
  | DDivZero : delt div (ENum 0) (EErr div_0)
  | DDivN :
-   forall n, beq_nat n 0 = false ->
-   delt div (ENum n) (ENum (int_reciprocal n))
+   forall n, not (Qeq n 0) ->
+   delt div (ENum n) (ENum (Qinv n))
  | DDivLam :
    forall x typ ws e,
    delt div (ELam x typ ws e) (EErr div_lam)
 
  | DAddN :
    forall n,
-   delt add (ENum n) (ENum (S n))
+   delt add (ENum n) (ENum (Qplus n 1))
  | DAddLam :
    forall x typ ws e,
    delt add (ELam x typ ws  e) (EErr add_lam)
@@ -131,7 +140,7 @@ Inductive step : expr -> expr -> Prop :=
    aval ea ->
    step (EApp (ELam x typ ws eb) ea) (subst x ea eb)
  | StepAppNum : forall n ea,
-   aval ea -> beq_nat n 0 = false ->
+   aval ea -> not (Qeq n 0) ->
    step (EApp (ENum n) ea) (EErr app_n)
  | StepApp0 : forall ea,
    aval ea ->
@@ -144,10 +153,19 @@ Inductive step : expr -> expr -> Prop :=
 .
 
 Example step1 :
-  step (EPrim div (ENum 22)) (ENum 0)
+  step (EPrim div (ENum 1)) (ENum 1)
 .
 Proof.
-  apply StepPrim. apply av_num. apply DDivN. reflexivity.
+  apply StepPrim. apply av_num. apply DDivN.
+  unfold not. intros. inversion H.
+Qed.
+
+Example bigger_num :
+  step (EPrim div (ENum (Qmake 22 1))) (ENum (Qmake 1 22))
+.
+Proof.
+  apply StepPrim. apply av_num. apply DDivN.
+  unfold not. intros. inversion H.
 Qed.
 
 Definition relation (X: Type) := X->X->Prop.
@@ -165,9 +183,9 @@ Definition stepmany := refl_step_closure step.
 
 
 Example decomp1 :
-  EDecomp (EPrim div (EPrim add (ENum 2)))
+  EDecomp (EPrim div (EPrim add (ENum 1)))
           (EPrimArg div EHole)
-          (EPrim add (ENum 2))
+          (EPrim add (ENum 1))
 .
 Proof.
   apply CxtPrimArg. apply CxtHole. apply ActPrim. apply av_num.
@@ -175,21 +193,81 @@ Qed.
           
 
 Example step2 :
-  stepmany (EPrim div (EPrim add (ENum 2))) (ENum 0)
+  stepmany (EPrim div (EPrim add (ENum 1))) (ENum (Qmake 1 2))
 .
 Proof.
-  apply rsc_step with (EPrim div (ENum 3)).
+  apply rsc_step with (EPrim div (ENum (Qmake 2 1))).
   apply StepCxt with (E := EPrimArg div EHole)
-                     (ae := EPrim add (ENum 2))
-                     (ae' := ENum 3).
+                     (ae := EPrim add (ENum 1))
+                     (ae' := ENum (Qmake 2 1)).
   apply CxtPrimArg. apply CxtHole. apply ActPrim. apply av_num.
 
-  apply StepPrim. apply av_num. apply DAddN. reflexivity.
+  apply StepPrim. apply av_num. apply DAddN.
+reflexivity.
 
-  apply rsc_step with (ENum 0).
-  apply StepPrim. apply av_num. apply DDivN. reflexivity.
-
+  apply rsc_step with (ENum (Qmake 1 2)).
+  apply StepPrim. apply av_num. apply DDivN. 
+  unfold not. intros. inversion H.
   apply rsc_refl.
+Qed.
+
+Fixpoint has_error (test_w: w) (lw: list w) : bool :=
+  match lw with
+    | nil => false
+    | hd :: tl =>
+      if beq_w test_w hd then true else has_error test_w tl
+  end
+.
+      
+
+Inductive delta_t : c -> typ -> list w -> typ -> Prop :=
+  | dt_bottom : forall c lw,
+    delta_t c TBot lw TBot
+  | dt_union : forall c t1 t2 lw t_left t_right,
+    delta_t c t1 lw t_left ->
+    delta_t c t2 lw t_right ->
+    delta_t c (TUnion t1 t2) lw (TUnion t_left t_right)
+
+  | dt_divN : forall lw,
+    delta_t div TNum lw TNum
+  | dt_div0 : forall lw,
+    has_error div_0 lw = true ->
+    delta_t div TZero lw TBot
+  | dt_divLam : forall t1 lw1 t2 lw2 typ_arrow,
+    has_error div_lam lw2 = true ->
+    typ_arrow = (TArrow t1 lw1 t2) ->
+    delta_t div typ_arrow lw2 TBot
+
+  | dt_addN : forall lw,
+    delta_t add TNum lw (TUnion TNum TZero)
+  | dt_add0 : forall lw,
+    delta_t add TZero lw TNum
+  | dt_addLam : forall t1 lw1 t2 lw2 typ_arrow,
+    has_error add_lam lw2 = true ->
+    typ_arrow = (TArrow t1 lw1 t2) ->
+    delta_t add typ_arrow lw2 TBot
+.
+
+Example divide_by_0 :
+  delta_t div TZero (div_0 :: nil) TBot
+.
+  apply dt_div0. reflexivity.
+Qed.
+
+Example divide_by_lam :
+  delta_t div (TArrow TNum nil TZero) (div_0 :: (div_lam :: nil)) TBot
+.
+  apply dt_divLam with (t1 := TNum) (lw1 := nil) (t2 := TZero);
+  reflexivity.
+Qed.
+
+Example divide_by_union :
+  delta_t add (TUnion (TArrow TNum nil TZero) TNum) (add_lam :: nil)
+     (TUnion TBot (TUnion TNum TZero)).
+Proof.
+  apply dt_union.
+  apply dt_addLam with (t1 := TNum) (lw1 := nil) (t2 := TZero);  reflexivity.
+  apply dt_addN.
 Qed.
 
 
