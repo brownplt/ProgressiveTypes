@@ -46,6 +46,38 @@ Inductive typ : Type :=
   | TId : id -> typ *)
 .
 
+Fixpoint beq_list_w lw lw' :=
+  match lw, lw' with
+    | nil, nil => true
+    | w :: tail, w' :: tail' =>
+      andb (beq_w w w') (beq_list_w tail tail')
+    | _, _ => false
+  end
+.
+
+Fixpoint bcontains_list_w lw lw' :=
+  match lw, lw' with
+    | nil, nil => true
+    | nil, nonempty => true
+    | w :: tail, w' :: tail' =>
+      andb (beq_w w w') (bcontains_list_w tail tail')
+    | nonempty, nil => false
+  end
+.
+
+Fixpoint beq_typ t t' :=
+  match t, t' with
+    | TBot, TBot => true
+    | TZero, TZero => true
+    | TNum, TNum => true
+    | TUnion t1 t2, TUnion t1' t2' =>
+      andb (beq_typ t1 t1') (beq_typ t2 t2')
+    | TArrow t1 lw t2, TArrow t1' lw' t2' =>
+      andb (beq_typ t1 t1')
+           (andb (beq_typ t2 t2') (beq_list_w lw lw'))
+    | _, _ => false
+  end.
+
 Inductive expr : Type :=
   | ENum : Q -> expr
   | ELam : id -> typ -> list w -> expr -> expr
@@ -270,4 +302,44 @@ Proof.
   apply dt_addN.
 Qed.
 
+Inductive apply_t : typ -> typ -> list w -> typ -> Prop :=
+  | at_bot1 : forall t lw, apply_t TBot t lw TBot
+  | at_bot2 : forall t lw, apply_t t TBot lw TBot
 
+  | at_zero : forall t lw,
+    has_error app_0 lw = true ->
+    apply_t TZero t lw TBot
+  | at_num : forall t lw,
+    has_error app_n lw = true ->
+    apply_t TNum t lw TBot
+
+  | at_app : forall t1 lw1 t2 t' lw2 arrow_typ,
+    beq_typ t1 t' = true ->
+    bcontains_list_w lw1 lw2 = true ->
+    arrow_typ = (TArrow t1 lw1 t2) ->
+    apply_t arrow_typ t' lw2 t2
+
+  | at_union : forall t1 t2 t' lw left_typ right_typ union_typ result_typ,
+    apply_t t1 t' lw left_typ ->
+    apply_t t2 t' lw right_typ ->
+    union_typ = (TUnion t1 t2) ->
+    result_typ = (TUnion left_typ right_typ) ->
+    apply_t union_typ t' lw result_typ
+.
+
+Example app_union :
+  apply_t (TUnion (TArrow TNum nil TZero) TNum) TNum (app_n :: nil)
+          (TUnion TZero TBot)
+.
+  apply at_union with (t1 := (TArrow TNum nil TZero))
+                      (t2 := TNum)
+                      (left_typ := TZero)
+                      (right_typ := TBot).
+  apply at_app with (t1 := TNum) (lw1 := nil);
+  reflexivity.
+
+  apply at_num; reflexivity.
+
+  reflexivity.
+  reflexivity.
+Qed.
