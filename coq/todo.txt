@@ -1,0 +1,7 @@
+TO DO:
+[] Define soundness
+[] Define progress
+[] Define preservation
+[] Prove Substitution
+[] Prove 1-step preservation
+[] Prove 1-step progress
