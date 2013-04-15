@@ -11,6 +11,12 @@ Definition beq_id X1 X2 :=
     (Id n1, Id n2) => beq_nat n1 n2
   end.
 
+Theorem beq_id_refl : forall i,
+  true = beq_id i i.
+Proof.
+  intros. destruct i.
+  apply beq_nat_refl. Qed.
+
 Inductive w : Type :=
   | div_0 : w
   | div_lam : w
@@ -18,6 +24,8 @@ Inductive w : Type :=
   | app_n : w
   | app_0 : w
 .
+
+Definition W := list w.
 
 Fixpoint beq_w w w' :=
   match w, w' with
@@ -342,4 +350,106 @@ Example app_union :
 
   reflexivity.
   reflexivity.
+Qed.
+
+Example app_div :
+  apply_t (TArrow TNum nil TNum) TNum nil
+          TNum
+.
+  apply at_app with (t1 := TNum) (lw1 := nil); reflexivity.
+Qed.
+
+
+Definition partial_map (A:Type) := id -> option A.
+
+Definition empty {A:Type} : partial_map A := (fun _ => None). 
+
+(** Informally, we'll write [Gamma, x:T] for "extend the partial
+    function [Gamma] to also map [x] to [T]."  Formally, we use the
+    function [extend] to add a binding to a partial map. *)
+
+Definition extend {A:Type} (Gamma : partial_map A) (x:id) (T : A) :=
+  fun x' => if beq_id x x' then Some T else Gamma x'.
+
+Lemma extend_eq : forall A (ctxt: partial_map A) x T,
+  (extend ctxt x T) x = Some T.
+Proof.
+  intros. unfold extend. rewrite <- beq_id_refl. auto.
+Qed.
+
+Lemma extend_neq : forall A (ctxt: partial_map A) x1 T x2,
+  beq_id x2 x1 = false ->
+  (extend ctxt x2 T) x1 = ctxt x1.
+Proof.
+  intros. unfold extend. rewrite H. auto.
+Qed.
+
+
+Definition context := partial_map typ.
+
+(*
+Inductive has_type : context -> tm -> ty -> Prop :=
+  | T_Var : forall Gamma x T,
+      Gamma x = Some T ->
+      has_type Gamma (tvar x) T
+  | T_Abs : forall Gamma x T11 T12 t12,
+      has_type (extend Gamma x T11) t12 T12 -> 
+      has_type Gamma (tabs x T11 t12) (TArrow T11 T12)
+  | T_App : forall T11 T12 Gamma t1 t2,
+      has_type Gamma t1 (TArrow T11 T12) -> 
+      has_type Gamma t2 T11 -> 
+      has_type Gamma (tapp t1 t2) T12
+  | T_True : forall Gamma,
+       has_type Gamma ttrue TBool
+  | T_False : forall Gamma,
+       has_type Gamma tfalse TBool
+  | T_If : forall t1 t2 t3 T Gamma,
+       has_type Gamma t1 TBool ->
+       has_type Gamma t2 T ->
+       has_type Gamma t3 T ->
+       has_type Gamma (tif t1 t2 t3) T.
+
+(* Reserved Notation " G |- t : T " (at level 40, t at level 39). *)
+*)
+
+Inductive has_type : W -> context -> expr -> typ -> Prop :=
+  | HTVar : forall W Gamma x t,
+      Gamma x = Some t ->
+      has_type W Gamma (EVar x) t
+  | HTLam : forall W Gamma x targ W2 e tres,
+      has_type W2 (extend Gamma x targ) e tres ->
+      has_type W Gamma (ELam x targ W2 e) (TArrow targ W2 tres)
+  | HTZero :  forall W Gamma,
+      has_type W Gamma (ENum 0) TZero
+  | HTNum : forall W Gamma n,
+      not (Qeq n 0) ->
+      has_type W Gamma (ENum n) TNum
+  | HTErr : forall W Gamma w,
+      has_error w W = true ->
+      has_type W Gamma (EErr w) TBot
+  | HTApp : forall W Gamma e1 e2 t1 t2 t,
+      has_type W Gamma e1 t1 ->
+      has_type W Gamma e2 t2 ->
+      apply_t t1 t2 W t ->
+      has_type W Gamma (EApp e1 e2) t
+  | HTPrim : forall W Gamma c e t1 t,
+      has_type W Gamma e t1 ->
+      delta_t c t1 W t ->
+      has_type W Gamma (EPrim c e) t
+.
+
+Example ht_lam :
+  has_type nil empty (ELam (Id 0) TNum nil (EVar (Id 0))) 
+           (TArrow TNum nil TNum)
+.
+  apply HTLam. apply HTVar. reflexivity.
+Qed.
+
+Example ht_div0 :
+  has_type nil empty (ELam (Id 0) TZero (div_0 :: nil) (EPrim div (EVar (Id 0))))
+           (TArrow TZero (div_0 :: nil) TBot)
+.
+ apply HTLam. apply HTPrim with (t1 := TZero). 
+   apply HTVar. reflexivity.
+   apply dt_div0. reflexivity.
 Qed.
