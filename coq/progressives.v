@@ -430,9 +430,9 @@ Inductive has_type : W -> context -> expr -> typ -> Prop :=
   | HTNum : forall W Gamma n,
       not (Qeq n 0) ->
       has_type W Gamma (ENum n) TNum
-  | HTErr : forall W Gamma w,
+  | HTErr : forall W Gamma w T,
       has_error w W = true ->
-      has_type W Gamma (EErr w) TBot
+      has_type W Gamma (EErr w) T
   | HTApp : forall W Gamma e1 e2 t1 t2 t,
       has_type W Gamma e1 t1 ->
       has_type W Gamma e2 t2 ->
@@ -459,6 +459,26 @@ Example ht_div0 :
    apply HTVar. reflexivity.
    apply dt_div0. reflexivity.
 Qed.
+
+
+Theorem typing_used_w : forall W G e E w T,
+  has_type W G e T ->
+  EDecomp e E (EErr w) ->
+  has_error w W = true.
+Proof.
+  intros.
+  generalize dependent E.
+  induction H; intros; try solve [inversion H0]; subst.
+  Case "Error". inversion H0. subst. assumption.
+  Case "App".
+    inversion H2; subst.
+    SCase "AppFun". apply IHhas_type1 in H7. assumption.
+    SCase "AppArg". apply IHhas_type2 in H8. assumption.
+  Case "Prim".
+    inversion H1; subst.
+    SCase "PrimArg". apply IHhas_type in H6. assumption.
+Qed.
+
 
 Theorem preservation : forall e e' W T,
      has_type W empty e T  ->
@@ -549,9 +569,13 @@ Proof.
       apply IHhas_type in H4.
       apply HTPrim with (t1 := t1). assumption. assumption.
     SSCase "Error".
-      admit. (* Need to say that if W, G |- E[err w] : t, then w is in W *)
-      (* Also maybe need subtyping to get from TBot to any type *)
-
+      apply HTErr.
+      apply typing_used_w with (G := Gamma)
+                               (E := E)
+                               (e := EPrim c0 e)
+                               (T := t).
+      apply HTPrim with (t1 := t1); assumption. assumption.
+Qed.
       
           
       
