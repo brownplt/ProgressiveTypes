@@ -4,7 +4,7 @@ TO DO:
   [] Define preservation
 [] Prove Substitution
 [/] Prove 1-step preservation
-  [] Figure out arithmetrix
+  [x] Figure out arithmetrix
   [] Do application
 [] Prove 1-step progress
 [] Define subtyping

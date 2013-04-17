@@ -487,6 +487,19 @@ Lemma delta_subtype : forall t1 t2 t' t'' c W,
   subtype t' t''.
 Proof. Admitted.
 
+Lemma inv_nonzero : forall q, ~ (/ q == 0) -> ~ (q == 0).
+Proof.
+  intros. intro. apply H. destruct q. unfold Qinv in *. simpl in *.
+  destruct (Z.eq_dec Qnum 0%Z); subst. reflexivity. inversion H0; omega.
+Qed.
+
+Lemma inv_zeronon : forall q, ~ q == 0 -> ~ / q == 0.
+Proof.
+  intros. intro. apply H. destruct q. unfold Qinv in *. simpl in *.
+  destruct (Z.eq_dec Qnum 0%Z); subst. reflexivity.
+  destruct Qnum; simpl in *. contradiction. inversion H0. inversion H0.
+Qed.
+
 
 Theorem preservation : forall e e' W T,
      has_type W empty e T  ->
@@ -547,7 +560,7 @@ Proof.
         SSSSCase "Num : TNum".
           inversion H0; subst.
           SSSSSCase "DivNum : TNum".
-          simpl. apply HTNum. admit. (* Do arithmetic later *)
+          simpl. apply HTNum. apply inv_zeronon. assumption.
           SSSSSCase "DivLam : TBot". inversion H9.
           SSSSCase "Num : s <= t". admit. (* Need a stupid lemma (see todo.txt) *)
       SSSCase "DivLam".
