@@ -365,6 +365,26 @@ Example app_div :
   apply at_app with (t1 := TNum) (lw1 := nil); reflexivity.
 Qed.
 
+Inductive subtype : typ -> typ -> Prop :=
+  | SBot : forall T, subtype TBot T
+  | SRefl : forall T, subtype T T
+  | SUnionL : forall S T1 T2,
+      subtype S T1 ->
+      subtype S (TUnion T1 T2)
+  | SUnionR : forall S T1 T2,
+      subtype S T2 ->
+      subtype S (TUnion T1 T2)
+  | SUnionJoin : forall S1 S2 T,
+      subtype S1 T ->
+      subtype S2 T ->
+      subtype (TUnion S1 S2) T
+  | SArrow : forall A1 W1 R1 A2 W2 R2,
+      subtype A2 A1 ->
+      subtype R1 R2 ->
+      bcontains_list_w W1 W2 = true ->
+      subtype (TArrow A1 W1 R1) (TArrow A2 W2 R2)
+.
+
 
 Definition partial_map (A:Type) := id -> option A.
 
@@ -393,31 +413,6 @@ Qed.
 
 Definition context := partial_map typ.
 
-(*
-Inductive has_type : context -> tm -> ty -> Prop :=
-  | T_Var : forall Gamma x T,
-      Gamma x = Some T ->
-      has_type Gamma (tvar x) T
-  | T_Abs : forall Gamma x T11 T12 t12,
-      has_type (extend Gamma x T11) t12 T12 -> 
-      has_type Gamma (tabs x T11 t12) (TArrow T11 T12)
-  | T_App : forall T11 T12 Gamma t1 t2,
-      has_type Gamma t1 (TArrow T11 T12) -> 
-      has_type Gamma t2 T11 -> 
-      has_type Gamma (tapp t1 t2) T12
-  | T_True : forall Gamma,
-       has_type Gamma ttrue TBool
-  | T_False : forall Gamma,
-       has_type Gamma tfalse TBool
-  | T_If : forall t1 t2 t3 T Gamma,
-       has_type Gamma t1 TBool ->
-       has_type Gamma t2 T ->
-       has_type Gamma t3 T ->
-       has_type Gamma (tif t1 t2 t3) T.
-
-(* Reserved Notation " G |- t : T " (at level 40, t at level 39). *)
-*)
-
 Inductive has_type : W -> context -> expr -> typ -> Prop :=
   | HTVar : forall W Gamma x t,
       Gamma x = Some t ->
@@ -442,6 +437,10 @@ Inductive has_type : W -> context -> expr -> typ -> Prop :=
       has_type W Gamma e t1 ->
       delta_t c t1 W t ->
       has_type W Gamma (EPrim c e) t
+  | HTSub : forall W Gamma e s t,
+      has_type W Gamma e s ->
+      subtype s t ->
+      has_type W Gamma e t
 .
 
 Example ht_lam :
@@ -461,7 +460,7 @@ Example ht_div0 :
 Qed.
 
 
-Theorem typing_used_w : forall W G e E w T,
+Lemma typing_used_w : forall W G e E w T,
   has_type W G e T ->
   EDecomp e E (EErr w) ->
   has_error w W = true.
@@ -477,7 +476,16 @@ Proof.
   Case "Prim".
     inversion H1; subst.
     SCase "PrimArg". apply IHhas_type in H6. assumption.
+  Case "Subtype".
+    apply IHhas_type in H1. assumption.
 Qed.
+
+Lemma delta_subtype : forall t1 t2 t' t'' c W,
+  subtype t1 t2 ->
+  delta_t c t1 W t' ->
+  delta_t c t2 W t'' ->
+  subtype t' t''.
+Proof. Admitted.
 
 
 Theorem preservation : forall e e' W T,
@@ -532,6 +540,7 @@ Proof.
           SSSSSCase "DivLam : TBot".
           inversion H7.
         SSSSCase "Num : TZero". contradict H11. reflexivity.
+        SSSSCase "Num : s <= t". admit. (* Need a stupid lemma (see todo.txt) *)
       SSSCase "DivN".
         inversion H; subst.
         SSSSCase "Zero : TNum". contradict H5. reflexivity.
@@ -540,9 +549,11 @@ Proof.
           SSSSSCase "DivNum : TNum".
           simpl. apply HTNum. admit. (* Do arithmetic later *)
           SSSSSCase "DivLam : TBot". inversion H9.
+          SSSSCase "Num : s <= t". admit. (* Need a stupid lemma (see todo.txt) *)
       SSSCase "DivLam".
         inversion H; subst.
         inversion H0. subst. simpl. apply HTErr. assumption.
+        SSSSCase "Num : s <= t". admit. (* Need a stupid lemma (see todo.txt) *)
       SSSCase "AddNumOrZero".
         inversion H; subst.
         SSSSCase "Zero : TZero".
@@ -556,9 +567,11 @@ Proof.
           inversion H0; subst.
           SSSSSCase "n + 1 is zero or a number". admit. (* Subtyping :-( *)
           SSSSSCase "Numbers are not lambdas". inversion H7.
+          SSSSCase "Num : s <= t". admit. (* Need a stupid lemma (see todo.txt) *)
       SSSCase "AddLambda".
         inversion H; subst.
         inversion H0. subst. simpl. apply HTErr. assumption.
+        SSSSCase "Num : s <= t". admit. (* Need a stupid lemma (see todo.txt) *)
     SSCase "NonActive".
       simpl in *.
       assert (step e (e_plug EC ae')).
@@ -575,8 +588,8 @@ Proof.
                                (e := EPrim c0 e)
                                (T := t).
       apply HTPrim with (t1 := t1); assumption. assumption.
-Qed.
-      
-          
+    SSCase "Subtype".
+      apply IHhas_type in H1. apply HTSub with (s := s); assumption.
+Qed.      
       
 
