@@ -11,4 +11,4 @@ TO DO:
 [] Canonical forms (e.g. Num 0 : T -> TZero <: T)
 [] 5 stupid lemmas for errors that say, e.g.
    if TZero <: T and delta_t(div, T, W, T') then div_0 is in W
-   ... etc for each error
+   ... etc for each one of the errors
