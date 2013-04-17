@@ -1,6 +1,7 @@
 Require Export Arith.EqNat.
 Require Export QArith.
 Require Export List.
+Require Export SfLib.
 
 Inductive id : Type :=
   | Id : nat -> id
@@ -136,15 +137,15 @@ Fixpoint e_plug (c: cxt) (e: expr) : expr :=
   end
 .
 
-Fixpoint subst (x: id) (s: expr) (t: expr) : expr :=
+Fixpoint e_subst (x: id) (s: expr) (t: expr) : expr :=
   match t with
     | ENum n => ENum n
     | ELam x2 typ ws e =>
-      if (beq_id x x2) then (t) else (ELam x2 typ ws (subst x s e)) 
+      if (beq_id x x2) then (t) else (ELam x2 typ ws (e_subst x s e)) 
     | EVar x2 => if (beq_id x x2) then s else t
     | EErr err_w => EErr err_w
-    | EApp e1 e2 =>EApp (subst x s e1) (subst x s e2)
-    | EPrim op_c e => EPrim op_c (subst x s e)
+    | EApp e1 e2 =>EApp (e_subst x s e1) (e_subst x s e2)
+    | EPrim op_c e => EPrim op_c (e_subst x s e)
     end
 .
 
@@ -165,46 +166,48 @@ Inductive delt : c -> expr -> expr -> Prop :=
    delt add (ELam x typ ws  e) (EErr add_lam)
 .
 
+Inductive cxt_step : expr -> expr -> Prop :=
+ | CStepApp : forall x typ ws eb ea,
+   aval ea ->
+   cxt_step (EApp (ELam x typ ws eb) ea) (e_subst x ea eb)
+ | CStepAppNum : forall n ea,
+   aval ea -> not (Qeq n 0) ->
+   cxt_step (EApp (ENum n) ea) (EErr app_n)
+ | CStepApp0 : forall ea,
+   aval ea ->
+   cxt_step (EApp (ENum 0) ea) (EErr app_0)
+
+ | CStepPrim : forall c ea ea',
+   aval ea ->
+   delt c ea ea' ->
+   cxt_step (EPrim c ea) ea'
+.
+
 Inductive step : expr -> expr -> Prop :=
  | StepCxt : forall e E ae ae' e',
    EDecomp e E ae ->
-   step ae ae' ->
+   cxt_step ae ae' ->
    e' = (e_plug E ae') ->
    step e e'
 
  | StepErr : forall e E w,
    EDecomp e E (EErr w) ->
    step e (EErr w)
-
- | StepApp : forall x typ ws eb ea,
-   aval ea ->
-   step (EApp (ELam x typ ws eb) ea) (subst x ea eb)
- | StepAppNum : forall n ea,
-   aval ea -> not (Qeq n 0) ->
-   step (EApp (ENum n) ea) (EErr app_n)
- | StepApp0 : forall ea,
-   aval ea ->
-   step (EApp (ENum 0) ea) (EErr app_0)
-
- | StepPrim : forall c ea ea',
-   aval ea ->
-   delt c ea ea' ->
-   step (EPrim c ea) ea'
 .
 
 Example step1 :
-  step (EPrim div (ENum 1)) (ENum 1)
+  cxt_step (EPrim div (ENum 1)) (ENum 1)
 .
 Proof.
-  apply StepPrim. apply av_num. apply DDivN.
+  apply CStepPrim. apply av_num. apply DDivN.
   unfold not. intros. inversion H.
 Qed.
 
 Example bigger_num :
-  step (EPrim div (ENum (Qmake 22 1))) (ENum (Qmake 1 22))
+  cxt_step (EPrim div (ENum (Qmake 22 1))) (ENum (Qmake 1 22))
 .
 Proof.
-  apply StepPrim. apply av_num. apply DDivN.
+  apply CStepPrim. apply av_num. apply DDivN.
   unfold not. intros. inversion H.
 Qed.
 
@@ -241,13 +244,16 @@ Proof.
                      (ae := EPrim add (ENum 1))
                      (ae' := ENum (Qmake 2 1)).
   apply CxtPrimArg. apply CxtHole. apply ActPrim. apply av_num.
-
-  apply StepPrim. apply av_num. apply DAddN.
-reflexivity.
+  apply CStepPrim. apply av_num. apply DAddN.
+  reflexivity.
 
   apply rsc_step with (ENum (Qmake 1 2)).
-  apply StepPrim. apply av_num. apply DDivN. 
-  unfold not. intros. inversion H.
+  apply StepCxt with (E := EHole)
+                     (ae := EPrim div (ENum (2 # 1)))
+                     (ae' := ENum (1 # 2)).
+  apply CxtHole. apply ActPrim. apply av_num.
+  apply CStepPrim. apply av_num. apply DDivN. 
+  unfold not. intros. inversion H. reflexivity.
   apply rsc_refl.
 Qed.
 
@@ -453,3 +459,100 @@ Example ht_div0 :
    apply HTVar. reflexivity.
    apply dt_div0. reflexivity.
 Qed.
+
+Theorem preservation : forall e e' W T,
+     has_type W empty e T  ->
+     step e e'  ->
+     has_type W empty e' T.
+Proof.
+  intros.
+  generalize dependent e'.
+  induction H; intros.
+  Case "HTVar".
+  inversion H0.
+    SCase "Decomp".
+      subst. inversion H1. subst. inversion H3.
+    SCase "Err". inversion H1.
+  Case "HTLam".
+  inversion H0.
+    SCase "Decomp".
+      subst. inversion H1. subst. inversion H3.
+    SCase "Err". inversion H1.
+  Case "HTZero".
+  inversion H0.
+    SCase "Decomp".
+      subst. inversion H. inversion H2.
+    SCase "Err". inversion H.
+  Case "HTNum".
+  inversion H0.
+    SCase "Decomp".
+      subst. inversion H1. inversion H3.
+    SCase "Err". inversion H1.
+  Case "HTErr".
+  inversion H0; subst.
+    SCase "Decomp".
+    inversion H1. subst. inversion H3.
+    SCase "Err".
+    apply HTErr. inversion H1. subst. apply H.
+  Case "HTApp". admit.
+  Case "HTPrim".
+  inversion H1; subst.
+    SCase "Decomp".
+    inversion H2; subst.
+    SSCase "Active". inversion H4. subst. clear IHhas_type.
+    inversion H3. subst.
+    inversion H10; subst. 
+      SSSCase "Div0".
+      inversion H; subst.
+        SSSSCase "Zero : TZero". 
+        inversion H0; subst.
+          SSSSSCase "Div0 : TBot".
+          simpl.
+          apply HTErr. assumption.
+          SSSSSCase "DivLam : TBot".
+          inversion H7.
+        SSSSCase "Num : TZero". contradict H11. reflexivity.
+      SSSCase "DivN".
+        inversion H; subst.
+        SSSSCase "Zero : TNum". contradict H5. reflexivity.
+        SSSSCase "Num : TNum".
+          inversion H0; subst.
+          SSSSSCase "DivNum : TNum".
+          simpl. apply HTNum. admit. (* Do arithmetic later *)
+          SSSSSCase "DivLam : TBot". inversion H9.
+      SSSCase "DivLam".
+        inversion H; subst.
+        inversion H0. subst. simpl. apply HTErr. assumption.
+      SSSCase "AddNumOrZero".
+        inversion H; subst.
+        SSSSCase "Zero : TZero".
+          simpl.
+          inversion H0; subst.
+          SSSSSCase "0 + 1 is a number".
+          apply HTNum. rewrite Qplus_0_l. unfold not. intros. inversion H5.
+          SSSSSCase "Zero is not a lambda". inversion H7.
+        SSSSCase "Num : TNum".
+          simpl.
+          inversion H0; subst.
+          SSSSSCase "n + 1 is zero or a number". admit. (* Subtyping :-( *)
+          SSSSSCase "Numbers are not lambdas". inversion H7.
+      SSSCase "AddLambda".
+        inversion H; subst.
+        inversion H0. subst. simpl. apply HTErr. assumption.
+    SSCase "NonActive".
+      simpl in *.
+      assert (step e (e_plug EC ae')).
+      apply StepCxt with (E := EC)
+                         (ae := ae)
+                         (ae' := ae').
+      assumption. assumption. reflexivity.
+      apply IHhas_type in H4.
+      apply HTPrim with (t1 := t1). assumption. assumption.
+    SSCase "Error".
+      admit. (* Need to say that if W, G |- E[err w] : t, then w is in W *)
+      (* Also maybe need subtyping to get from TBot to any type *)
+
+      
+          
+      
+
