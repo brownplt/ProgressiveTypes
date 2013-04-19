@@ -150,7 +150,9 @@ Fixpoint e_subst (x: id) (s: expr) (t: expr) : expr :=
 .
 
 Inductive delt : c -> expr -> expr -> Prop :=
- | DDivZero : delt div (ENum 0) (EErr div_0)
+ | DDivZero :
+   forall n, Qeq n 0 ->
+   delt div (ENum n) (EErr div_0)
  | DDivN :
    forall n, not (Qeq n 0) ->
    delt div (ENum n) (ENum (Qinv n))
@@ -420,8 +422,9 @@ Inductive has_type : W -> context -> expr -> typ -> Prop :=
   | HTLam : forall W Gamma x targ W2 e tres,
       has_type W2 (extend Gamma x targ) e tres ->
       has_type W Gamma (ELam x targ W2 e) (TArrow targ W2 tres)
-  | HTZero :  forall W Gamma,
-      has_type W Gamma (ENum 0) TZero
+  | HTZero :  forall W Gamma n,
+      Qeq n 0 ->
+      has_type W Gamma (ENum n) TZero
   | HTNum : forall W Gamma n,
       not (Qeq n 0) ->
       has_type W Gamma (ENum n) TNum
@@ -575,8 +578,8 @@ Proof.
   Case "HTZero".
   inversion H0.
     SCase "Decomp".
-      subst. inversion H. inversion H2.
-    SCase "Err". inversion H.
+      subst. inversion H1. inversion H3.
+    SCase "Err". inversion H1.
   Case "HTNum".
   inversion H0.
     SCase "Decomp".
@@ -604,17 +607,17 @@ Proof.
           simpl.
           apply HTErr. assumption.
           SSSSSCase "DivLam : TBot".
-          inversion H7.
-        SSSSCase "Num : TZero". contradict H11. reflexivity.
+          discriminate.
+        SSSSCase "Num : TZero". contradiction.
         SSSSCase "Num : s <= t". simpl in *.
-        induction H5; subst; try solve [inversion H10].
+        induction H7; subst; try solve [inversion H10].
           SSSSSCase "HTZero". apply HTErr. apply delta_inv_div_0 with (t1 := t1) (t := t); assumption.
-          SSSSSCase "HTNum". inversion H10. admit. (* how does n = 0 -> n == 0?  Can you math computer? *)
+          SSSSSCase "HTNum". inversion H10. contradiction.
           SSSSSCase "HTSub". apply IHhas_type0; try solve [assumption].
             apply subtype_transitive with (t := t0); assumption.
       SSSCase "DivN".
         inversion H; subst.
-        SSSSCase "Zero : TNum". contradict H5. reflexivity.
+        SSSSCase "Zero : TNum". contradiction.
         SSSSCase "Num : TNum".
           inversion H0; subst.
           SSSSSCase "DivNum : TNum".
@@ -622,9 +625,9 @@ Proof.
           SSSSSCase "DivLam : TBot". inversion H9.
           SSSSCase "Num : s <= t". simpl in *.
             induction H7; subst; try solve [inversion H10].
-            SSSSSCase "Zero is not non-zero". inversion H10. contradict H12. reflexivity.
+            SSSSSCase "Zero is not non-zero". inversion H10. contradiction.
             SSSSSCase "Num". apply HTSub with (s := TNum).
-              SSSSSSCase "Numbers are numbers". apply HTNum. admit.
+              SSSSSSCase "Numbers are numbers". apply HTNum. apply inv_zeronon. assumption.
               SSSSSSCase "delta/subtyping commute".
                 apply delta_subtype with (t1 := TNum) (t2 := t1) (c := div) (W := W0).
                 assumption. apply dt_divN. assumption.
@@ -645,7 +648,7 @@ Proof.
           simpl.
           inversion H0; subst.
           SSSSSCase "0 + 1 is a number".
-          apply HTNum. rewrite Qplus_0_l. unfold not. intros. inversion H5.
+          apply HTNum. rewrite H11. rewrite Qplus_0_l. unfold not. intros. inversion H5.
           SSSSSCase "Zero is not a lambda". inversion H7.
         SSSSCase "Num : TNum".
           simpl.
@@ -653,14 +656,27 @@ Proof.
           SSSSSCase "n + 1 is zero or a number".
             destruct (n + 1).
               destruct Qnum.
-                apply HTSub with (s := TZero). admit. (* Basic math *)
+                apply HTSub with (s := TZero). constructor. simpl_relation. (* TODO(joe): lookup/remember this *)
                 apply SUnionR. apply SRefl.
-                apply HTSub with (s := TNum). admit.
+                apply HTSub with (s := TNum). constructor. simpl_relation.
                 apply SUnionL. apply SRefl.
-                apply HTSub with (s := TNum). admit.
+                apply HTSub with (s := TNum). constructor. simpl_relation.
                 apply SUnionL. apply SRefl.
           SSSSSCase "Numbers are not lambdas". inversion H7.
-        SSSSCase "Num : s <= t".  admit. (* Need a stupid lemma (see todo.txt) *)
+        SSSSCase "Num : s <= t"; simpl in *.
+          remember (ENum n) as e_n.
+          induction H5; inversion Heqe_n; subst; try solve [inversion H10].
+          SSSSSCase "Zero".
+            apply HTSub with (s := TNum). apply HTNum. rewrite H5. rewrite Qplus_0_l. simpl_relation.
+            apply delta_subtype with (t1 := TZero) (t2 := t1) (c := add) (W := W0); auto. constructor.
+          SSSSSCase "Num". 
+            apply HTSub with (s := (TUnion TNum TZero)).
+            destruct (Qeq_dec n (Qmake (-1) 1)).
+              apply HTSub with (s := TZero). apply HTZero. rewrite q. simpl_relation. apply SUnionR. apply SRefl.
+              apply HTSub with (s := TNum). apply HTNum. simpl_relation. apply n0. rewrite <- Qplus_inj_r. rewrite H9.  simpl_relation.
+              apply SUnionL. apply SRefl.
+              apply delta_subtype with (t1 := TNum) (t2 := t1) (c := add) (W := W0); auto. constructor.
+          SSSSSCase "Inductive". apply IHhas_type0; try auto. apply subtype_transitive with (t := t0); auto.
       SSSCase "AddLambda".
         inversion H; subst.
         inversion H0. subst. simpl. apply HTErr. assumption.
