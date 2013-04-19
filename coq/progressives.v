@@ -487,6 +487,12 @@ Lemma delta_subtype : forall t1 t2 t' t'' c W,
   subtype t' t''.
 Proof. Admitted.
 
+(*
+Lemma canonical_forms : forall W G e T,
+  has_type W G (ENum 0) T -> subtype TZero T
+  and
+  forall n, n == 0 has_type W G (ENum n) T -> 
+*)
 Lemma inv_nonzero : forall q, ~ (/ q == 0) -> ~ (q == 0).
 Proof.
   intros. intro. apply H. destruct q. unfold Qinv in *. simpl in *.
@@ -500,6 +506,53 @@ Proof.
   destruct Qnum; simpl in *. contradiction. inversion H0. inversion H0.
 Qed.
 
+Lemma delta_inv_div_0 : forall t1 W t,
+  subtype TZero t1 ->
+  delta_t div t1 W t ->
+  has_error div_0 W = true.
+Proof.
+  intros t1 W t H H1.
+  generalize dependent t.
+  remember TZero as t_sub.
+  induction H; subst; intros; try solve [inversion Heqt_sub].
+    Case "TRefl". inversion H1.
+      SCase "TZero". assumption.
+      SCase "TLam". inversion H0.
+    Case "TUnionL".
+      inversion H1; subst.
+      SCase "TUnion". apply IHsubtype with (t := t_left). reflexivity. assumption.
+      SCase "TArrow". inversion H2.
+    Case "TUnionR".
+      inversion H1; subst.
+      SCase "TUnion". apply IHsubtype with (t := t_right). reflexivity. assumption.
+      SCase "TArrow". inversion H2.
+Qed.
+
+Lemma delta_inv_div_lam : forall s W' u t1 W t,
+  subtype (TArrow s W' u) t1 ->
+  delta_t div t1 W t ->
+  has_error div_lam W = true.
+Proof.
+  intros s W' u t1 W t H H1.
+  generalize dependent t.
+  remember (TArrow s W' u) as t_sub.
+  induction H; subst; intros; try solve [inversion Heqt_sub].
+    Case "TRefl". inversion H1.
+      SCase "TLam". assumption.
+    Case "TUnionL".
+      inversion H1; subst.
+      SCase "TUnion". apply IHsubtype with (t := t_left). reflexivity. assumption.
+      SCase "TArrow". inversion H2.
+    Case "TUnionR".
+      inversion H1; subst.
+      SCase "TUnion". apply IHsubtype with (t := t_right). reflexivity. assumption.
+      SCase "TArrow". assumption. inversion H2. subst. assumption.
+Qed.
+
+    
+Lemma subtype_transitive : forall s t u,
+  subtype s t -> subtype t u -> subtype s u.
+Proof. admit. Qed.
 
 Theorem preservation : forall e e' W T,
      has_type W empty e T  ->
@@ -540,7 +593,7 @@ Proof.
   inversion H1; subst.
     SCase "Decomp".
     inversion H2; subst.
-    SSCase "Active". inversion H4. subst. clear IHhas_type.
+    SSCase "Active". inversion H4. subst.
     inversion H3. subst.
     inversion H10; subst. 
       SSSCase "Div0".
@@ -553,7 +606,12 @@ Proof.
           SSSSSCase "DivLam : TBot".
           inversion H7.
         SSSSCase "Num : TZero". contradict H11. reflexivity.
-        SSSSCase "Num : s <= t". admit. (* Need a stupid lemma (see todo.txt) *)
+        SSSSCase "Num : s <= t". simpl in *.
+        induction H5; subst; try solve [inversion H10].
+          SSSSSCase "HTZero". apply HTErr. apply delta_inv_div_0 with (t1 := t1) (t := t); assumption.
+          SSSSSCase "HTNum". inversion H10. admit. (* how does n = 0 -> n == 0?  Can you math computer? *)
+          SSSSSCase "HTSub". apply IHhas_type0; try solve [assumption].
+            apply subtype_transitive with (t := t0); assumption.
       SSSCase "DivN".
         inversion H; subst.
         SSSSCase "Zero : TNum". contradict H5. reflexivity.
@@ -562,11 +620,25 @@ Proof.
           SSSSSCase "DivNum : TNum".
           simpl. apply HTNum. apply inv_zeronon. assumption.
           SSSSSCase "DivLam : TBot". inversion H9.
-          SSSSCase "Num : s <= t". admit. (* Need a stupid lemma (see todo.txt) *)
+          SSSSCase "Num : s <= t". simpl in *.
+            induction H7; subst; try solve [inversion H10].
+            SSSSSCase "Zero is not non-zero". inversion H10. contradict H12. reflexivity.
+            SSSSSCase "Num". apply HTSub with (s := TNum).
+              SSSSSSCase "Numbers are numbers". apply HTNum. admit.
+              SSSSSSCase "delta/subtyping commute".
+                apply delta_subtype with (t1 := TNum) (t2 := t1) (c := div) (W := W0).
+                assumption. apply dt_divN. assumption.
+            SSSSSCase "HTSub". apply IHhas_type0; try solve [assumption].
+            apply subtype_transitive with (t := t0); assumption.
       SSSCase "DivLam".
         inversion H; subst.
         inversion H0. subst. simpl. apply HTErr. assumption.
-        SSSSCase "Num : s <= t". admit. (* Need a stupid lemma (see todo.txt) *)
+        SSSSCase "Num : s <= t". simpl in *.
+        induction H5; subst; try solve [inversion H10].
+          SSSSSCase "HTLam". apply HTErr.
+            apply delta_inv_div_lam with (s := targ) (W' := W2) (u := tres) (t1 := t1) (t := t); assumption.
+          SSSSSCase "HTSub". apply IHhas_type0; try solve [assumption].
+            apply subtype_transitive with (t := t0); assumption.
       SSSCase "AddNumOrZero".
         inversion H; subst.
         SSSSCase "Zero : TZero".
@@ -578,13 +650,21 @@ Proof.
         SSSSCase "Num : TNum".
           simpl.
           inversion H0; subst.
-          SSSSSCase "n + 1 is zero or a number". admit. (* Subtyping :-( *)
+          SSSSSCase "n + 1 is zero or a number".
+            destruct (n + 1).
+              destruct Qnum.
+                apply HTSub with (s := TZero). admit. (* Basic math *)
+                apply SUnionR. apply SRefl.
+                apply HTSub with (s := TNum). admit.
+                apply SUnionL. apply SRefl.
+                apply HTSub with (s := TNum). admit.
+                apply SUnionL. apply SRefl.
           SSSSSCase "Numbers are not lambdas". inversion H7.
-          SSSSCase "Num : s <= t". admit. (* Need a stupid lemma (see todo.txt) *)
+        SSSSCase "Num : s <= t".  admit. (* Need a stupid lemma (see todo.txt) *)
       SSSCase "AddLambda".
         inversion H; subst.
         inversion H0. subst. simpl. apply HTErr. assumption.
-        SSSSCase "Num : s <= t". admit. (* Need a stupid lemma (see todo.txt) *)
+        SSSSCase "Num : s <= t". simpl in *. admit. (* Need a stupid lemma (see todo.txt) *)
     SSCase "NonActive".
       simpl in *.
       assert (step e (e_plug EC ae')).
@@ -605,4 +685,3 @@ Proof.
       apply IHhas_type in H1. apply HTSub with (s := s); assumption.
 Qed.      
       
-
