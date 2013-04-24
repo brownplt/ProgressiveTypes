@@ -661,6 +661,23 @@ Proof.
         apply bcontains_list_trans with (l2 := W2); assumption.
 Qed.
 
+Lemma apply_subtype : forall targ1 W1 tres1 tfun targ2 W2 tres2,
+  subtype (TArrow targ1 W1 tres1) tfun ->
+  apply_t tfun targ2 W2 tres2 ->
+  (subtype tres1 tres2) /\ (subtype targ2 targ1) /\ (bcontains_list_w W1 W2 = true).
+Proof.
+Admitted.
+
+Lemma subst_type : forall e x v G T W1 W2 Tx,
+  has_type W1 G e T ->
+  aval v ->
+  G x = Some Tx ->
+  bcontains_list_w W1 W2 = true ->
+  has_type W2 G v Tx ->
+  has_type W2 G (e_subst x v e) T.
+Proof.
+Admitted.
+
 Theorem preservation : forall e e' W T,
      has_type W empty e T  ->
      step e e'  ->
@@ -695,7 +712,39 @@ Proof.
     inversion H1. subst. inversion H3.
     SCase "Err".
     apply HTErr. inversion H1. subst. apply H.
-  Case "HTApp". admit.
+  Case "HTApp".
+   inversion H2; subst.
+    SCase "Decomp".
+      inversion H3; subst; simpl in *.
+     SSCase "Active".
+       inversion H4; subst.
+        SSSCase "EApp".
+          admit.
+        SSSCase "AppN".
+          admit.
+        SSSCase "App0".
+          admit.
+        SSSCase "EPrim".
+          admit.
+      SSCase "Error".
+        apply HTErr.
+        apply typing_used_w with (G := Gamma)
+                               (E := E)
+                               (e := EApp e1 e2)
+                               (T := t2).
+      apply HTApp. with (t1 := t1); assumption. assumption.
+    SSCase "Subtype".
+      apply IHhas_type in H1. apply HTSub with (s := s); assumption.
+    *)
+     SSCase "EApp Fun".
+       admit.
+     SSCase "EApp Arg".
+       admit.
+     SSCase "EErr".
+       admit.
+
+
+
   Case "HTPrim".
   inversion H1; subst.
     SCase "Decomp".
