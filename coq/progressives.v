@@ -698,15 +698,16 @@ Admitted.
 Lemma invert_lam : forall x t w e W G t1 t2,
   has_type W G (ELam x t w e) t1 ->
   subtype t1 t2 ->
-  exists2 tres ,
-    has_type W G (ELam x t w e) (TArrow t w tres) &
-    subtype (TArrow t w tres) t2.
+  exists tres ,
+    (has_type W G (ELam x t w e) (TArrow t w tres) /\
+    has_type w (extend G x t) e tres /\
+    subtype (TArrow t w tres) t2).
 Proof.
   intros.
   remember (ELam x t w0 e) as elam.
   induction H; inversion Heqelam; subst.
-    Case "HTLam".  exists tres. 
-      apply HTLam. assumption. assumption.
+    Case "HTLam".  exists tres. split.
+      apply HTLam. assumption. split. assumption. assumption.
     Case "HTSub".
       intros.
       apply IHhas_type. reflexivity.
@@ -776,18 +777,28 @@ Proof.
               inversion H10. subst. assumption. assumption.
             SSSSCase "App-ridiculous". inversion H12.
             SSSSCase "Prim-ridiculous". inversion H11.
-            SSSSCase "HTSub".
-              induction H7; subst.
-              SSSSSCase "lam is not bot". inversion H6.
-              
-apply_subtype
-     : forall (targ1 : typ) (W1 : list w) (tres1 tfun targ2 : typ)
-         (W2 : list w) (tres2 : typ),
-       subtype (TArrow targ1 W1 tres1) tfun ->
-       apply_t tfun targ2 W2 tres2 ->
-       subtype tres1 tres2 /\
-       subtype targ2 targ1 /\ bcontains_list_w W1 W2 = true
-
+            SSSSCase "HTSub".  
+              assert (exists tres,
+                has_type W0 Gamma (ELam x typ0 ws eb) (TArrow typ0 ws tres) /\
+                has_type ws (extend Gamma x typ0) eb tres /\
+                subtype (TArrow typ0 ws tres) s).
+              apply invert_lam with (t1 := s). assumption. apply SRefl.
+              elim H8. intros.
+              break_ands.
+              apply HTSub with (s := x0). assumption.
+              Print apply_subtype_res.
+              eapply apply_subtype_res with (targ1 := typ0)
+                (W1 := ws)
+                (tres1 := x0)
+                (tfun := t1)
+                (W2 := W0)
+                (tres2 := t)
+                (targ2 := t2).
+              apply subtype_transitive with (t := s). assumption. assumption.
+              assumption. assumption.
+           admit. (* TODO(joe): Gamma for sure present? *)
+           admit. (* TODO(joe): Why didn't this come up earlier?  Apply inversion *)
+           admit. (* TODO(joe): Confused about what level we're at *)
         SSSCase "AppN".
           admit.
         SSSCase "App0".
