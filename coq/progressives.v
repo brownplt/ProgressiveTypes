@@ -695,7 +695,23 @@ Lemma apply_subtype : forall targ1 W1 tres1 tfun targ2 W2 tres2,
 Proof.
 Admitted.
 
-
+Lemma invert_lam : forall x t w e W G t1 t2,
+  has_type W G (ELam x t w e) t1 ->
+  subtype t1 t2 ->
+  exists2 tres ,
+    has_type W G (ELam x t w e) (TArrow t w tres) &
+    subtype (TArrow t w tres) t2.
+Proof.
+  intros.
+  remember (ELam x t w0 e) as elam.
+  induction H; inversion Heqelam; subst.
+    Case "HTLam".  exists tres. 
+      apply HTLam. assumption. assumption.
+    Case "HTSub".
+      intros.
+      apply IHhas_type. reflexivity.
+      apply subtype_transitive with (t := t0). assumption. assumption.
+Qed.
 
 Lemma subst_type : forall e x v G T W1 W2 Tx,
   has_type W1 (extend G x Tx) e T ->
@@ -751,15 +767,18 @@ Proof.
           apply subst_type with (W1 := ws) (Tx := typ0).
           
           remember (ELam x typ0 ws eb) as elam.
-          induction H; subst; try solve [inversion Heqelam]; subst.
+          inversion H; subst; try solve [inversion H10].
             SSSSCase "HTLam".
-              apply HTSub with (s := tres). inversion Heqelam. subst. assumption.
               assert (subtype (TArrow targ W2 tres) (TArrow targ W2 tres)).
               apply SRefl.
-              assert (foo := apply_subtype targ W2 tres (TArrow targ W2 tres) t2 W0 t H6 H1).
-              break_ands. assumption.
+              assert (foo := apply_subtype targ W2 tres (TArrow targ W2 tres) t2 W0 t H7 H1).
+              apply HTSub with (s := tres); break_ands.
+              inversion H10. subst. assumption. assumption.
+            SSSSCase "App-ridiculous". inversion H12.
+            SSSSCase "Prim-ridiculous". inversion H11.
             SSSSCase "HTSub".
-              apply IHhas_type; try solve [assumption].
+              induction H7; subst.
+              SSSSSCase "lam is not bot". inversion H6.
               
 apply_subtype
      : forall (targ1 : typ) (W1 : list w) (tres1 tfun targ2 : typ)
