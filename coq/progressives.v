@@ -715,36 +715,26 @@ Proof.
   Case "HTApp".
    inversion H2; subst.
     SCase "Decomp".
-      inversion H3; subst; simpl in *.
+     inversion H3; subst; simpl in *.
      SSCase "Active".
-       inversion H4; subst.
+        inversion H4; subst.
         SSSCase "EApp".
           admit.
         SSSCase "AppN".
           admit.
         SSSCase "App0".
           admit.
-        SSSCase "EPrim".
-          admit.
-      SSCase "Error".
-        apply HTErr.
-        apply typing_used_w with (G := Gamma)
-                               (E := E)
-                               (e := EApp e1 e2)
-                               (T := t2).
-      apply HTApp. with (t1 := t1); assumption. assumption.
-    SSCase "Subtype".
-      apply IHhas_type in H1. apply HTSub with (s := s); assumption.
-    *)
      SSCase "EApp Fun".
        admit.
      SSCase "EApp Arg".
        admit.
-     SSCase "EErr".
-       admit.
-
-
-
+   SCase "Error".
+      apply HTErr.
+      apply typing_used_w with (G := Gamma)
+                               (E := E)
+                               (e := EApp e1 e2)
+                               (T := t).
+      apply HTApp with (t1 := t1) (t2 := t2); assumption. assumption.
   Case "HTPrim".
   inversion H1; subst.
     SCase "Decomp".
@@ -850,7 +840,7 @@ Proof.
                                (e := EPrim c0 e)
                                (T := t).
       apply HTPrim with (t1 := t1); assumption. assumption.
-    SSCase "Subtype".
-      apply IHhas_type in H1. apply HTSub with (s := s); assumption.
+  Case "Subtype".
+   apply IHhas_type in H1. apply HTSub with (s := s); assumption.
 Qed.      
       
