@@ -661,6 +661,33 @@ Proof.
         apply bcontains_list_trans with (l2 := W2); assumption.
 Qed.
 
+Ltac break_ands :=
+  repeat match goal with
+           [ H : _ /\ _ |- _ ] => inversion H; clear H
+         end.
+
+Lemma apply_subtype_res : forall targ1 W1 tres1 tfun targ2 W2 tres2,
+  subtype (TArrow targ1 W1 tres1) tfun ->
+  apply_t tfun targ2 W2 tres2 ->
+  subtype tres1 tres2.
+Proof.
+Admitted.
+
+Lemma apply_subtype_arg : forall targ1 W1 tres1 tfun targ2 W2 tres2,
+  subtype (TArrow targ1 W1 tres1) tfun ->
+  apply_t tfun targ2 W2 tres2 ->
+  subtype targ2 targ1.
+Proof.
+Admitted.
+
+Lemma apply_subtype_W : forall targ1 W1 tres1 tfun targ2 W2 tres2,
+  subtype (TArrow targ1 W1 tres1) tfun ->
+  apply_t tfun targ2 W2 tres2 ->
+  bcontains_list_w W1 W2 = true.
+Proof.
+Admitted.
+
+
 Lemma apply_subtype : forall targ1 W1 tres1 tfun targ2 W2 tres2,
   subtype (TArrow targ1 W1 tres1) tfun ->
   apply_t tfun targ2 W2 tres2 ->
@@ -668,8 +695,10 @@ Lemma apply_subtype : forall targ1 W1 tres1 tfun targ2 W2 tres2,
 Proof.
 Admitted.
 
+
+
 Lemma subst_type : forall e x v G T W1 W2 Tx,
-  has_type W1 G e T ->
+  has_type W1 (extend G x Tx) e T ->
   aval v ->
   G x = Some Tx ->
   bcontains_list_w W1 W2 = true ->
@@ -719,7 +748,27 @@ Proof.
      SSCase "Active".
         inversion H4; subst.
         SSSCase "EApp".
-          admit.
+          apply subst_type with (W1 := ws) (Tx := typ0).
+          
+          remember (ELam x typ0 ws eb) as elam.
+          induction H; subst; try solve [inversion Heqelam]; subst.
+            SSSSCase "HTLam".
+              apply HTSub with (s := tres). inversion Heqelam. subst. assumption.
+              assert (subtype (TArrow targ W2 tres) (TArrow targ W2 tres)).
+              apply SRefl.
+              assert (foo := apply_subtype targ W2 tres (TArrow targ W2 tres) t2 W0 t H6 H1).
+              break_ands. assumption.
+            SSSSCase "HTSub".
+              apply IHhas_type; try solve [assumption].
+              
+apply_subtype
+     : forall (targ1 : typ) (W1 : list w) (tres1 tfun targ2 : typ)
+         (W2 : list w) (tres2 : typ),
+       subtype (TArrow targ1 W1 tres1) tfun ->
+       apply_t tfun targ2 W2 tres2 ->
+       subtype tres1 tres2 /\
+       subtype targ2 targ1 /\ bcontains_list_w W1 W2 = true
+
         SSSCase "AppN".
           admit.
         SSSCase "App0".
