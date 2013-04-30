@@ -9,10 +9,6 @@ Ltac break_ands :=
          end.
 
 
-Inductive id : Type :=
-  | Id : nat -> id
-.
-
 Definition beq_id X1 X2 :=
   match (X1, X2) with
     (Id n1, Id n2) => beq_nat n1 n2
@@ -166,26 +162,45 @@ Fixpoint e_plug (c: cxt) (e: expr) : expr :=
   end
 .
 
+Definition Env := partial_map bool.
+
+Inductive closed : Env -> expr -> Prop :=
+  | closed_var : forall env x,
+      env x = Some true ->
+      closed env (EVar x)
+  | closed_num : forall env n, closed env (ENum n)
+  | closed_err : forall env w, closed env (EErr w)
+  | closed_lam : forall env x W t e,
+      closed (extend env x true) e ->
+      closed env (ELam x W t e)
+  | closed_app : forall env e1 e2,
+      closed env e1 -> closed env e2 -> closed env (EApp e1 e2)
+  | closed_prim : forall env c e,
+      closed env e -> closed env (EPrim c e)
+.
+
 Lemma decomp_expr: forall e,
+  closed empty e ->
   (exists E ae, HoleFiller ae /\ EDecomp e E ae) \/ aval e.
 Proof.
   intros.
   induction e; try solve [right; constructor].
-  Case "Var". admit.
+  Case "Var". inversion H. inversion H2.
   Case "Err".
     left. exists EHole. exists (EErr w0).
     split; constructor. constructor.
   Case "App".
-    left. inversion IHe1.
+    left. inversion H. apply IHe1 in H3.
+    inversion H3.
     SCase "e1 decomposed".
-      elim H. intros E' H'. elim H'. intro ae. intros.
+      elim H5. intros E' H'. elim H'. intro ae. intros.
       exists (EAppFun E' e2).
       exists ae.
       break_ands.
       split. assumption.
       apply CxtAppFun. assumption.
     SCase "e1 was a value".
-      inversion IHe2.
+      inversion H. subst.  apply IHe2 in H4. inversion H4.
       SSCase "e2 decomposed".
         elim H0. intros E' H'. elim H'. intro ae. intros.
         exists (EAppArg e1 E').
@@ -199,9 +214,9 @@ Proof.
         apply CxtHole. constructor. constructor; assumption.
 
   Case "Prim".
-    left. inversion IHe.
+    left. inversion H. apply IHe in H2. inversion H2.
     SCase "e decomposed".
-      elim H. intros E' H'. elim H'. intro ae. intros.
+      elim H4. intros E' H'. elim H'. intro ae. intros.
       exists (EPrimArg c0 E').
       exists ae.
       break_ands.
@@ -1174,31 +1189,72 @@ Inductive is_error: expr -> Prop :=
   | err : forall w, is_error (EErr w).
    
 Lemma progress : forall W e t,
+  closed empty e ->
   has_type W empty e t ->
   aval e \/
   (~ (is_error e) /\ exists e', step e e') \/
   (is_error e /\ exists w, (e = EErr w) /\ has_error w W = true).
 Proof.
   intros.
-  destruct e; try solve [left; constructor].
-  Case "Var".
-    remember (EVar i) as var.
-    remember empty as G.
-    induction H; subst; try solve [inversion Heqvar]. inversion H.
-    apply IHhas_type; reflexivity.
-  Case "Err".
-    remember (EErr w0) as err.
-    induction H; subst; try solve [inversion Heqerr].
-    SCase "HTErr".
-      right. right.
-      split.
-      constructor.
-      exists w1. split. reflexivity. assumption.
-    SCase "HTSub".
-      apply IHhas_type. reflexivity.
-  Case "EApp".
-    destruct (EApp e1 e2).
-  Case "EPrim".
-  
+  assert ((exists E ae, HoleFiller ae /\ EDecomp e E ae) \/ aval e).
+  apply decomp_expr. assumption.
+  inversion H1; try solve [left; assumption].
+  Case "Decomp".
+    elim H2. intros E H2'. elim H2'. intros ae H2''. break_ands.
+    destruct ae; try solve [inversion H3; inversion H5].
+    SCase "EErr".
+      remember E as e_before_the_fall.
+      destruct E;
+        try solve [
+          right; left; split;
+          try solve [unfold not; intro; inversion H5; subst; inversion H4];
+          try solve [exists (EErr w0); apply StepErr with (E := e_before_the_fall); assumption]
+        ]. subst.
+      SSCase "Hole". inversion H4. subst. right. right. split.
+        constructor.
+        exists w0.
+        split.
+          reflexivity.
+          apply typing_used_w with (G := empty)
+                                   (E := EHole)
+                                   (e := (EErr w0))
+                                   (T := t); assumption.
+    SCase "EApp".
+      inversion H3. inversion H5. subst.
+      right. left. split.
+        unfold not. intro. inversion H6. subst. inversion H4.
+        destruct ae1; try solve [inversion H9].
+        SSCase "Num".
+          admit.
+        SSCase "Lam".
+          exists (e_plug E (e_subst i ae2 ae1)).
+          apply StepCxt with (E := E)
+                             (ae := (EApp (ELam i t0 l ae1) ae2))
+                             (ae' := e_subst i ae2 ae1);
+                             try solve [assumption].
+          constructor. assumption. reflexivity.
+    SCase "EPrim".
+      inversion H3. inversion H5. subst.
+      right. left. split.
+        unfold not. intro. inversion H6. subst. inversion H4.
+        destruct ae; try solve [inversion H8].
+        SSCase "Num".
+          admit.
+        SSCase "Lam".
+          destruct c0.
+          SSSCase "div".
+            exists (e_plug E (EErr div_lam)).
+            apply StepCxt with (E := E)
+              (ae := EPrim div (ELam i t0 l ae))
+              (ae' := EErr div_lam);
+              try solve [assumption].
+            constructor. assumption. constructor. reflexivity.
+          SSSCase "add".
+            exists (e_plug E (EErr add_lam)).
+            apply StepCxt with (E := E)
+              (ae := EPrim add (ELam i t0 l ae))
+              (ae' := EErr add_lam);
+              try solve [assumption].
+            constructor. assumption. constructor. reflexivity.
 Qed.
 
