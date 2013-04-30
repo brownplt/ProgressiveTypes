@@ -3,6 +3,12 @@ Require Export QArith.
 Require Export List.
 Require Export SfLib.
 
+Ltac break_ands :=
+  repeat match goal with
+           [ H : _ /\ _ |- _ ] => inversion H; clear H
+         end.
+
+
 Inductive id : Type :=
   | Id : nat -> id
 .
@@ -132,8 +138,13 @@ Inductive ActExp : expr -> Prop :=
   | ActApp : forall e1 e2, aval e1 -> aval e2 -> ActExp (EApp e1 e2)
 .
 
+Inductive HoleFiller : expr -> Prop :=
+  | HFErr : forall w, HoleFiller (EErr w)
+  | HFAct : forall e, ActExp e -> HoleFiller e
+.
+
 Inductive EDecomp : expr -> cxt -> expr -> Prop :=
-  | CxtHole : forall ae, ActExp ae -> EDecomp ae EHole ae
+  | CxtHole : forall ae, HoleFiller ae -> EDecomp ae EHole ae
   | CxtAppFun : forall EC efun earg ae,
                    EDecomp efun EC ae -> 
                    EDecomp (EApp efun earg) (EAppFun EC earg) ae
@@ -154,6 +165,53 @@ Fixpoint e_plug (c: cxt) (e: expr) : expr :=
     | EPrimArg op c2 => EPrim op (e_plug c2 e)
   end
 .
+
+Lemma decomp_expr: forall e,
+  (exists E ae, HoleFiller ae /\ EDecomp e E ae) \/ aval e.
+Proof.
+  intros.
+  induction e; try solve [right; constructor].
+  Case "Var". admit.
+  Case "Err".
+    left. exists EHole. exists (EErr w0).
+    split; constructor. constructor.
+  Case "App".
+    left. inversion IHe1.
+    SCase "e1 decomposed".
+      elim H. intros E' H'. elim H'. intro ae. intros.
+      exists (EAppFun E' e2).
+      exists ae.
+      break_ands.
+      split. assumption.
+      apply CxtAppFun. assumption.
+    SCase "e1 was a value".
+      inversion IHe2.
+      SSCase "e2 decomposed".
+        elim H0. intros E' H'. elim H'. intro ae. intros.
+        exists (EAppArg e1 E').
+        exists ae.
+        break_ands.
+        split. assumption.
+        apply CxtAppArg; assumption.
+      SSCase "e2 was a value".
+        exists EHole. exists (EApp e1 e2).
+        split. constructor. constructor; assumption.
+        apply CxtHole. constructor. constructor; assumption.
+
+  Case "Prim".
+    left. inversion IHe.
+    SCase "e decomposed".
+      elim H. intros E' H'. elim H'. intro ae. intros.
+      exists (EPrimArg c0 E').
+      exists ae.
+      break_ands.
+      split. assumption.
+      apply CxtPrimArg. assumption.
+    SCase "e was a value".
+      exists EHole. exists (EPrim c0 e).
+      split. constructor. constructor; assumption.
+      apply CxtHole. constructor. constructor; assumption.
+Qed.
 
 Fixpoint e_subst (x: id) (s: expr) (t: expr) : expr :=
   match t with
@@ -206,6 +264,7 @@ Inductive cxt_step : expr -> expr -> Prop :=
 Inductive step : expr -> expr -> Prop :=
  | StepCxt : forall e E ae ae' e',
    EDecomp e E ae ->
+   ActExp ae ->
    cxt_step ae ae' ->
    e' = (e_plug E ae') ->
    step e e'
@@ -251,7 +310,7 @@ Example decomp1 :
           (EPrim add (ENum 1))
 .
 Proof.
-  apply CxtPrimArg. apply CxtHole. apply ActPrim. apply av_num.
+  apply CxtPrimArg. apply CxtHole. constructor. apply ActPrim. apply av_num.
 Qed.
           
 
@@ -263,7 +322,8 @@ Proof.
   apply StepCxt with (E := EPrimArg div EHole)
                      (ae := EPrim add (ENum 1))
                      (ae' := ENum (Qmake 2 1)).
-  apply CxtPrimArg. apply CxtHole. apply ActPrim. apply av_num.
+  apply CxtPrimArg. apply CxtHole. constructor. apply ActPrim. apply av_num.
+  constructor. constructor.
   apply CStepPrim. apply av_num. apply DAddN.
   reflexivity.
 
@@ -271,8 +331,8 @@ Proof.
   apply StepCxt with (E := EHole)
                      (ae := EPrim div (ENum (2 # 1)))
                      (ae' := ENum (1 # 2)).
-  apply CxtHole. apply ActPrim. apply av_num.
-  apply CStepPrim. apply av_num. apply DDivN. 
+  apply CxtHole. constructor. apply ActPrim. apply av_num.
+  constructor. constructor. apply CStepPrim. apply av_num. apply DDivN. 
   unfold not. intros. inversion H. reflexivity.
   apply rsc_refl.
 Qed.
@@ -574,6 +634,27 @@ Proof.
       SCase "TArrow". assumption. inversion H2. subst. assumption.
 Qed.
 
+Lemma delta_inv_add_lam : forall s W' u t1 W t,
+  subtype (TArrow s W' u) t1 ->
+  delta_t add t1 W t ->
+  has_error add_lam W = true.
+Proof.
+  intros s W' u t1 W t H H1.
+  generalize dependent t.
+  remember (TArrow s W' u) as t_sub.
+  induction H; subst; intros; try solve [inversion Heqt_sub].
+    Case "TRefl". inversion H1.
+      SCase "TLam". assumption.
+    Case "TUnionL".
+      inversion H1; subst.
+      SCase "TUnion". apply IHsubtype with (t := t_left). reflexivity. assumption.
+      SCase "TArrow". inversion H2.
+    Case "TUnionR".
+      inversion H1; subst.
+      SCase "TUnion". apply IHsubtype with (t := t_right). reflexivity. assumption.
+      SCase "TArrow". assumption. inversion H2. subst. assumption.
+Qed.
+
 Lemma app_inv_0 : forall t1 targ W tres,
   subtype TZero t1 ->
   apply_t t1 targ W tres ->
@@ -718,11 +799,6 @@ Proof.
         apply bcontains_list_trans with (l2 := W2); assumption.
 Qed.
 
-Ltac break_ands :=
-  repeat match goal with
-           [ H : _ /\ _ |- _ ] => inversion H; clear H
-         end.
-
 Lemma apply_subtype_res : forall targ1 W1 tres1 tfun targ2 W2 tres2,
   subtype (TArrow targ1 W1 tres1) tfun ->
   apply_t tfun targ2 W2 tres2 ->
@@ -787,6 +863,21 @@ Proof.
       apply subtype_transitive with (t := t); assumption.
 Qed.
 
+Lemma invert_0 : forall t1 t2 W G,
+  has_type W G (ENum 0) t1 ->
+  subtype t1 t2 ->
+  subtype TZero t2.
+Proof.
+  intros.
+  remember (ENum 0) as num.
+  induction H; inversion Heqnum; subst.
+    assumption.
+    contradict H. reflexivity.
+    Case "HTSub".
+      intros. apply IHhas_type. reflexivity.
+      apply subtype_transitive with (t := t); assumption.
+Qed.
+
 Lemma val_not_bottom : forall e W G t,
   has_type W G e t ->
   aval e ->
@@ -829,17 +920,17 @@ Proof.
   Case "HTZero".
   inversion H0.
     SCase "Decomp".
-      subst. inversion H1. inversion H3.
+      subst. inversion H1. inversion H4. inversion H8.
     SCase "Err". inversion H1.
   Case "HTNum".
   inversion H0.
     SCase "Decomp".
-      subst. inversion H1. inversion H3.
+      subst. inversion H1. inversion H4. inversion H8.
     SCase "Err". inversion H1.
   Case "HTErr".
   inversion H0; subst.
     SCase "Decomp".
-    inversion H1. subst. inversion H3.
+    inversion H1. subst. inversion H2.
     SCase "Err".
     apply HTErr. inversion H1. subst. apply H.
   Case "HTApp".
@@ -847,27 +938,27 @@ Proof.
     SCase "Decomp".
      inversion H3; subst; simpl in *.
      SSCase "Active".
-        inversion H4; subst.
+        inversion H5; subst.
         SSSCase "EApp".
           apply subst_type with (W1 := ws) (Tx := typ0).
           
           remember (ELam x typ0 ws eb) as elam.
-          inversion H; subst; try solve [inversion H10].
+          inversion H; subst; try solve [inversion H11].
             SSSSCase "HTLam".
               assert (subtype (TArrow targ W2 tres) (TArrow targ W2 tres)).
               apply SRefl.
-              assert (foo := apply_subtype targ W2 tres (TArrow targ W2 tres) t2 W0 t H7 H1).
+              assert (foo := apply_subtype targ W2 tres (TArrow targ W2 tres) t2 W0 t H8 H1).
               apply HTSub with (s := tres); break_ands.
-              inversion H10. subst. assumption. assumption.
-            SSSSCase "App-ridiculous". inversion H12.
-            SSSSCase "Prim-ridiculous". inversion H11.
+              inversion H11. subst. assumption. assumption.
+            SSSSCase "App-ridiculous". inversion H13.
+            SSSSCase "Prim-ridiculous". inversion H12.
             SSSSCase "HTSub".
               assert (exists tres,
                 has_type W0 Gamma (ELam x typ0 ws eb) (TArrow typ0 ws tres) /\
                 has_type ws (extend Gamma x typ0) eb tres /\
                 subtype (TArrow typ0 ws tres) s).
               apply invert_lam with (t1 := s). assumption. apply SRefl.
-              elim H8. intros.
+              elim H9. intros.
               break_ands.
               apply HTSub with (s := x0). assumption.
               eapply apply_subtype_res with (targ1 := typ0)
@@ -885,7 +976,7 @@ Proof.
                 has_type ws (extend Gamma x typ0) eb tres /\
                 subtype (TArrow typ0 ws tres) t1).
               apply invert_lam with (t1 := t1). assumption. apply SRefl.
-              elim H6. intros.
+              elim H7. intros.
               break_ands.
               apply apply_subtype_W with (targ1 := typ0)
                                       (tres1 := x0)
@@ -898,7 +989,7 @@ Proof.
                 has_type ws (extend Gamma x typ0) eb tres /\
                 subtype (TArrow typ0 ws tres) t1).
               apply invert_lam with (t1 := t1). assumption. apply SRefl.
-              elim H6. intros.
+              elim H7. intros.
               break_ands.
               apply HTSub with (s := t2). assumption.
               apply apply_subtype_arg with
@@ -911,25 +1002,53 @@ Proof.
           apply HTErr.
           apply app_inv_n with (t1 := t1) (targ := t2) (tres := t).
           remember (ENum n) as the_num.
-          induction H; subst; try solve [inversion Heqthe_num]; try inversion Heqthe_num; subst.
-            SSSSCase "Zero". contradict H10. assumption.
+          induction H; subst;
+                       try solve [inversion Heqthe_num];
+                       try inversion Heqthe_num;
+                       subst.
+            SSSSCase "Zero". contradict H11. assumption.
             SSSSCase "Numbers are numbers". apply SRefl.
             SSSSCase "TNum <: t0".
               apply invert_num with (n := n) (t1 := s) (W := W0) (G := Gamma).
               assumption. assumption. assumption.
             assumption.
             
-            induction H0; subst; try solve [discriminate]; try solve [inversion H8].
+            induction H0; subst; try solve [discriminate]; try solve [inversion H9].
             assert (~ (subtype t0 TBot)).
             apply val_not_bottom with (e := e) (W := W0) (G := Gamma).
             apply HTSub with (s := s); assumption.
-            assumption. contradict H7. subst. apply SRefl.
+            assumption. contradict H8. subst. apply SRefl.
         SSSCase "App0".
-          admit.
+          apply HTErr.
+          apply app_inv_0 with (t1 := t1) (targ := t2) (tres := t).
+          remember (ENum 0) as the_num.
+          induction H; subst;
+                       try solve [inversion Heqthe_num];
+                       try inversion Heqthe_num;
+                       subst.
+            SSSSCase "Zeros are zeros". apply SRefl.
+            SSSSCase "Number". contradict H. reflexivity.
+            SSSSCase "TNum <: t0".
+              apply invert_0 with (t1 := s) (W := W0) (G := Gamma).
+              assumption. assumption. assumption.
+            
+            induction H0; subst; try solve [discriminate]; try solve [inversion H10].
+            assert (~ (subtype t0 TBot)).
+            apply val_not_bottom with (e := e) (W := W0) (G := Gamma).
+            apply HTSub with (s := s); assumption.
+            assumption. contradict H8. subst. apply SRefl.
      SSCase "EApp Fun".
-       admit.
+       assert (step e1 (e_plug EC ae')).
+       apply StepCxt with (E := EC) (ae := ae) (ae' := ae').
+       assumption. assumption. assumption. reflexivity.
+       apply IHhas_type1 in H6.
+       apply HTApp with (t1 := t1) (t2 := t2); assumption.
      SSCase "EApp Arg".
-       admit.
+       assert (step e2 (e_plug EC ae')).
+       apply StepCxt with (E := EC) (ae := ae) (ae' := ae').
+       assumption. assumption. assumption. reflexivity.
+       apply IHhas_type2 in H6.
+       apply HTApp with (t1 := t1) (t2 := t2); assumption.
    SCase "Error".
       apply HTErr.
       apply typing_used_w with (G := Gamma)
@@ -955,7 +1074,7 @@ Proof.
           discriminate.
         SSSSCase "Num : TZero". contradiction.
         SSSSCase "Num : s <= t". simpl in *.
-        induction H7; subst; try solve [inversion H10].
+        induction H9; subst; try solve [inversion H10].
           SSSSSCase "HTZero". apply HTErr. apply delta_inv_div_0 with (t1 := t1) (t := t); assumption.
           SSSSSCase "HTNum". inversion H10. contradiction.
           SSSSSCase "HTSub". apply IHhas_type0; try solve [assumption].
@@ -967,9 +1086,9 @@ Proof.
           inversion H0; subst.
           SSSSSCase "DivNum : TNum".
           simpl. apply HTNum. apply inv_zeronon. assumption.
-          SSSSSCase "DivLam : TBot". inversion H9.
+          SSSSSCase "DivLam : TBot". inversion H11.
           SSSSCase "Num : s <= t". simpl in *.
-            induction H7; subst; try solve [inversion H10].
+            induction H9; subst; try solve [inversion H10].
             SSSSSCase "Zero is not non-zero". inversion H10. contradiction.
             SSSSSCase "Num". apply HTSub with (s := TNum).
               SSSSSSCase "Numbers are numbers". apply HTNum. apply inv_zeronon. assumption.
@@ -982,7 +1101,7 @@ Proof.
         inversion H; subst.
         inversion H0. subst. simpl. apply HTErr. assumption.
         SSSSCase "Num : s <= t". simpl in *.
-        induction H5; subst; try solve [inversion H10].
+        induction H6; subst; try solve [inversion H10].
           SSSSSCase "HTLam". apply HTErr.
             apply delta_inv_div_lam with (s := targ) (W' := W2) (u := tres) (t1 := t1) (t := t); assumption.
           SSSSSCase "HTSub". apply IHhas_type0; try solve [assumption].
@@ -993,8 +1112,8 @@ Proof.
           simpl.
           inversion H0; subst.
           SSSSSCase "0 + 1 is a number".
-          apply HTNum. rewrite H11. rewrite Qplus_0_l. unfold not. intros. inversion H5.
-          SSSSSCase "Zero is not a lambda". inversion H7.
+          apply HTNum. rewrite H12. rewrite Qplus_0_l. unfold not. intros. inversion H6.
+          SSSSSCase "Zero is not a lambda". inversion H9.
         SSSSCase "Num : TNum".
           simpl.
           inversion H0; subst.
@@ -1007,33 +1126,38 @@ Proof.
                 apply SUnionL. apply SRefl.
                 apply HTSub with (s := TNum). constructor. simpl_relation.
                 apply SUnionL. apply SRefl.
-          SSSSSCase "Numbers are not lambdas". inversion H7.
+          SSSSSCase "Numbers are not lambdas". inversion H9.
         SSSSCase "Num : s <= t"; simpl in *.
           remember (ENum n) as e_n.
-          induction H5; inversion Heqe_n; subst; try solve [inversion H10].
+          induction H6; inversion Heqe_n; subst; try solve [inversion H10].
           SSSSSCase "Zero".
-            apply HTSub with (s := TNum). apply HTNum. rewrite H5. rewrite Qplus_0_l. simpl_relation.
+            apply HTSub with (s := TNum). apply HTNum. rewrite H6. rewrite Qplus_0_l. simpl_relation.
             apply delta_subtype with (t1 := TZero) (t2 := t1) (c := add) (W := W0); auto. constructor.
           SSSSSCase "Num". 
             apply HTSub with (s := (TUnion TNum TZero)).
             destruct (Qeq_dec n (Qmake (-1) 1)).
               apply HTSub with (s := TZero). apply HTZero. rewrite q. simpl_relation. apply SUnionR. apply SRefl.
-              apply HTSub with (s := TNum). apply HTNum. simpl_relation. apply n0. rewrite <- Qplus_inj_r. rewrite H9.  simpl_relation.
+              apply HTSub with (s := TNum). apply HTNum. simpl_relation. apply n0. rewrite <- Qplus_inj_r. rewrite H11.  simpl_relation.
               apply SUnionL. apply SRefl.
               apply delta_subtype with (t1 := TNum) (t2 := t1) (c := add) (W := W0); auto. constructor.
           SSSSSCase "Inductive". apply IHhas_type0; try auto. apply subtype_transitive with (t := t0); auto.
       SSSCase "AddLambda".
         inversion H; subst.
         inversion H0. subst. simpl. apply HTErr. assumption.
-        SSSSCase "Num : s <= t". simpl in *. admit. (* Need a stupid lemma (see todo.txt) *)
+        SSSSCase "Num : s <= t". simpl in *.
+          induction H6; subst; try solve [inversion H10].
+          SSSSSCase "HTLam". apply HTErr.
+            apply delta_inv_add_lam with (s := targ) (W' := W2) (u := tres) (t1 := t1) (t := t); assumption.
+          SSSSSCase "HTSub". apply IHhas_type0; try solve [assumption].
+            apply subtype_transitive with (t := t0); assumption.
     SSCase "NonActive".
       simpl in *.
       assert (step e (e_plug EC ae')).
       apply StepCxt with (E := EC)
                          (ae := ae)
                          (ae' := ae').
-      assumption. assumption. reflexivity.
-      apply IHhas_type in H4.
+      assumption. assumption. assumption. reflexivity.
+      apply IHhas_type in H5.
       apply HTPrim with (t1 := t1). assumption. assumption.
     SSCase "Error".
       apply HTErr.
@@ -1045,4 +1169,36 @@ Proof.
   Case "Subtype".
    apply IHhas_type in H1. apply HTSub with (s := s); assumption.
 Qed.      
-      
+   
+Inductive is_error: expr -> Prop :=
+  | err : forall w, is_error (EErr w).
+   
+Lemma progress : forall W e t,
+  has_type W empty e t ->
+  aval e \/
+  (~ (is_error e) /\ exists e', step e e') \/
+  (is_error e /\ exists w, (e = EErr w) /\ has_error w W = true).
+Proof.
+  intros.
+  destruct e; try solve [left; constructor].
+  Case "Var".
+    remember (EVar i) as var.
+    remember empty as G.
+    induction H; subst; try solve [inversion Heqvar]. inversion H.
+    apply IHhas_type; reflexivity.
+  Case "Err".
+    remember (EErr w0) as err.
+    induction H; subst; try solve [inversion Heqerr].
+    SCase "HTErr".
+      right. right.
+      split.
+      constructor.
+      exists w1. split. reflexivity. assumption.
+    SCase "HTSub".
+      apply IHhas_type. reflexivity.
+  Case "EApp".
+    destruct (EApp e1 e2).
+  Case "EPrim".
+  
+Qed.
+
