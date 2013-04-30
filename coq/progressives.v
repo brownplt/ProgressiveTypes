@@ -341,19 +341,23 @@ Inductive apply_t : typ -> typ -> list w -> typ -> Prop :=
   | at_bot2 : forall t lw, apply_t t TBot lw TBot
 
   | at_zero : forall t lw,
+    ~ (t = TBot) ->
     has_error app_0 lw = true ->
     apply_t TZero t lw TBot
   | at_num : forall t lw,
+    ~ (t = TBot) ->
     has_error app_n lw = true ->
     apply_t TNum t lw TBot
 
   | at_app : forall t1 lw1 t2 t' lw2 arrow_typ,
+    ~ (t' = TBot) ->
     beq_typ t1 t' = true ->
     bcontains_list_w lw1 lw2 = true ->
     arrow_typ = (TArrow t1 lw1 t2) ->
     apply_t arrow_typ t' lw2 t2
 
   | at_union : forall t1 t2 t' lw left_typ right_typ union_typ result_typ,
+    ~ (t' = TBot) ->
     apply_t t1 t' lw left_typ ->
     apply_t t2 t' lw right_typ ->
     union_typ = (TUnion t1 t2) ->
@@ -368,11 +372,11 @@ Example app_union :
   apply at_union with (t1 := (TArrow TNum nil TZero))
                       (t2 := TNum)
                       (left_typ := TZero)
-                      (right_typ := TBot).
-  apply at_app with (t1 := TNum) (lw1 := nil);
+                      (right_typ := TBot); try solve [discriminate].
+  apply at_app with (t1 := TNum) (lw1 := nil); try solve [discriminate];
   reflexivity.
 
-  apply at_num; reflexivity.
+  apply at_num; try solve [discriminate]; reflexivity.
 
   reflexivity.
   reflexivity.
@@ -382,7 +386,7 @@ Example app_div :
   apply_t (TArrow TNum nil TNum) TNum nil
           TNum
 .
-  apply at_app with (t1 := TNum) (lw1 := nil); reflexivity.
+  apply at_app with (t1 := TNum) (lw1 := nil); try solve [discriminate]; reflexivity.
 Qed.
 
 Inductive subtype : typ -> typ -> Prop :=
@@ -570,6 +574,59 @@ Proof.
       SCase "TArrow". assumption. inversion H2. subst. assumption.
 Qed.
 
+Lemma app_inv_0 : forall t1 targ W tres,
+  subtype TZero t1 ->
+  apply_t t1 targ W tres ->
+  ~ (targ = TBot) ->
+  has_error app_0 W = true.
+Proof.
+  intros.
+  generalize dependent tres.
+  remember TZero as tz.
+  induction H; subst; intros; try solve [inversion Heqtz].
+  Case "TRefl".
+    inversion H0; subst;
+      try solve [contradict H1; reflexivity];
+      try solve [assumption];
+      try solve [inversion H4].
+  Case "UnionL".
+    inversion H0; subst;
+      try solve [contradict H1; reflexivity];
+      inversion H5; subst.
+    apply IHsubtype with (tres := left_typ). reflexivity. assumption.
+  Case "UnionR".
+    inversion H0; subst;
+      try solve [contradict H1; reflexivity];
+      inversion H5; subst.
+    apply IHsubtype with (tres := right_typ). reflexivity. assumption.
+Qed.
+
+Lemma app_inv_n : forall t1 targ W tres,
+  subtype TNum t1 ->
+  apply_t t1 targ W tres ->
+  ~ (targ = TBot) ->
+  has_error app_n W = true.
+Proof.
+  intros.
+  generalize dependent tres.
+  remember TNum as tn.
+  induction H; subst; intros; try solve [inversion Heqtn].
+  Case "TRefl".
+    inversion H0; subst;
+      try solve [contradict H1; reflexivity];
+      try solve [assumption];
+      try solve [inversion H4].
+  Case "UnionL".
+    inversion H0; subst;
+      try solve [contradict H1; reflexivity];
+      inversion H5; subst.
+    apply IHsubtype with (tres := left_typ). reflexivity. assumption.
+  Case "UnionR".
+    inversion H0; subst;
+      try solve [contradict H1; reflexivity];
+      inversion H5; subst.
+    apply IHsubtype with (tres := right_typ). reflexivity. assumption.
+Qed.
 
 Fixpoint type_size t : nat :=
   match t with
@@ -714,10 +771,37 @@ Proof.
       apply subtype_transitive with (t := t0). assumption. assumption.
 Qed.
 
+Lemma invert_num : forall n t1 t2 W G,
+  ~ (n == 0) ->
+  has_type W G (ENum n) t1 ->
+  subtype t1 t2 ->
+  subtype TNum t2.
+Proof.
+  intros.
+  remember (ENum n) as num.
+  induction H0; inversion Heqnum; subst.
+    contradict H. assumption.
+    assumption.
+    Case "HTSub".
+      intros. apply IHhas_type. reflexivity.
+      apply subtype_transitive with (t := t); assumption.
+Qed.
+
+Lemma val_not_bottom : forall e W G t,
+  has_type W G e t ->
+  aval e ->
+  ~ (subtype t TBot).
+Proof.
+  intros.
+  induction H; try solve [inversion H0];
+      try solve [unfold not; intro; inversion H1].
+    unfold not. intro. apply IHhas_type. assumption.
+      apply subtype_transitive with (t := t); assumption.
+Qed.
+
 Lemma subst_type : forall e x v G T W1 W2 Tx,
   has_type W1 (extend G x Tx) e T ->
   aval v ->
-  G x = Some Tx ->
   bcontains_list_w W1 W2 = true ->
   has_type W2 G v Tx ->
   has_type W2 G (e_subst x v e) T.
@@ -777,7 +861,7 @@ Proof.
               inversion H10. subst. assumption. assumption.
             SSSSCase "App-ridiculous". inversion H12.
             SSSSCase "Prim-ridiculous". inversion H11.
-            SSSSCase "HTSub".  
+            SSSSCase "HTSub".
               assert (exists tres,
                 has_type W0 Gamma (ELam x typ0 ws eb) (TArrow typ0 ws tres) /\
                 has_type ws (extend Gamma x typ0) eb tres /\
@@ -786,7 +870,6 @@ Proof.
               elim H8. intros.
               break_ands.
               apply HTSub with (s := x0). assumption.
-              Print apply_subtype_res.
               eapply apply_subtype_res with (targ1 := typ0)
                 (W1 := ws)
                 (tres1 := x0)
@@ -794,13 +877,53 @@ Proof.
                 (W2 := W0)
                 (tres2 := t)
                 (targ2 := t2).
-              apply subtype_transitive with (t := s). assumption. assumption.
-              assumption. assumption.
-           admit. (* TODO(joe): Gamma for sure present? *)
-           admit. (* TODO(joe): Why didn't this come up earlier?  Apply inversion *)
-           admit. (* TODO(joe): Confused about what level we're at *)
+              apply subtype_transitive with (t := s); assumption. assumption.
+              assumption. (* aval precondition for subst_type *)
+
+              assert (exists tres,
+                has_type W0 Gamma (ELam x typ0 ws eb) (TArrow typ0 ws tres) /\
+                has_type ws (extend Gamma x typ0) eb tres /\
+                subtype (TArrow typ0 ws tres) t1).
+              apply invert_lam with (t1 := t1). assumption. apply SRefl.
+              elim H6. intros.
+              break_ands.
+              apply apply_subtype_W with (targ1 := typ0)
+                                      (tres1 := x0)
+                                      (tfun := t1)
+                                      (targ2 := t2)
+                                      (tres2 := t); assumption.
+
+              assert (exists tres,
+                has_type W0 Gamma (ELam x typ0 ws eb) (TArrow typ0 ws tres) /\
+                has_type ws (extend Gamma x typ0) eb tres /\
+                subtype (TArrow typ0 ws tres) t1).
+              apply invert_lam with (t1 := t1). assumption. apply SRefl.
+              elim H6. intros.
+              break_ands.
+              apply HTSub with (s := t2). assumption.
+              apply apply_subtype_arg with
+                                      (tres1 := x0)
+                                      (tfun := t1)
+                                      (tres2 := t)
+                                      (W1 := ws)
+                                      (W2 := W0); assumption.
         SSSCase "AppN".
-          admit.
+          apply HTErr.
+          apply app_inv_n with (t1 := t1) (targ := t2) (tres := t).
+          remember (ENum n) as the_num.
+          induction H; subst; try solve [inversion Heqthe_num]; try inversion Heqthe_num; subst.
+            SSSSCase "Zero". contradict H10. assumption.
+            SSSSCase "Numbers are numbers". apply SRefl.
+            SSSSCase "TNum <: t0".
+              apply invert_num with (n := n) (t1 := s) (W := W0) (G := Gamma).
+              assumption. assumption. assumption.
+            assumption.
+            
+            induction H0; subst; try solve [discriminate]; try solve [inversion H8].
+            assert (~ (subtype t0 TBot)).
+            apply val_not_bottom with (e := e) (W := W0) (G := Gamma).
+            apply HTSub with (s := s); assumption.
+            assumption. contradict H7. subst. apply SRefl.
         SSSCase "App0".
           admit.
      SSCase "EApp Fun".
