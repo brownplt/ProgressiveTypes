@@ -1,4 +1,5 @@
 Require Export Arith.EqNat.
+Require Export Arith.
 Require Export QArith.
 Require Export List.
 Require Export SfLib.
@@ -104,6 +105,8 @@ Admitted.
   assert (bcontains_list_w l1 l3 = true). apply IHl1 with (l2 := l2).
   destruct H2.
 *)  
+
+Hint Resolve bcontains_list_trans.
 
 
 Fixpoint beq_typ t t' :=
@@ -716,6 +719,9 @@ Lemma union_incl_2 : forall t1 t2 t3,
   subtype (TUnion t1 t2) t3 -> subtype t2 t3.           
 Proof.
   Admitted.
+
+Hint Resolve union_incl_1.
+Hint Resolve union_incl_2.
     
 Lemma subtype_transitive : forall s t u,
   subtype s t -> subtype t u -> subtype s u.
@@ -723,69 +729,26 @@ Proof.
   intros.
   remember (type_size t) as n.
   assert (type_size t <= n)%nat by omega. clear Heqn. generalize dependent u; generalize dependent s; generalize dependent t.
-  induction n; intros. 
+  induction n; intros.
   Case "n = 0".
     destruct t; inversion H1.
   Case "n > 0".
     generalize dependent t; generalize dependent u.
-    induction s; intros; inversion H; try solve [constructor]; subst; try solve [assumption].
-    SCase "s = TZero; t = TUnion: Left".
-      inversion H1.
-      assert ((type_size T1 <= n)%nat). rewrite <- H4. apply le_plus_l.
-      apply IHn with (t := T1); auto. simpl in H1. apply union_incl_1 with (t2 := T2). assumption.
-      apply IHn with (t := (TUnion T1 T2)); assumption.
-    SCase "s = TZero; t = TUnion: Right".
-      inversion H1.
-      assert ((type_size T2 <= n)%nat). rewrite <- H4. apply le_plus_r.
-      apply IHn with (t := T2); auto. simpl in H1. apply union_incl_2 with (t1 := T1). assumption.
-      apply IHn with (t := (TUnion T1 T2)); assumption.
-   SCase "s = TNum; t = TUnion: Left".
-      inversion H1.
-      assert ((type_size T1 <= n)%nat). rewrite <- H4. apply le_plus_l.
-      apply IHn with (t := T1); auto. simpl in H1. apply union_incl_1 with (t2 := T2). assumption.
-      apply IHn with (t := (TUnion T1 T2)); assumption.
-    SCase "s = TNum; t = TUnion: Right".
-      inversion H1.
-      assert ((type_size T2 <= n)%nat). rewrite <- H4. apply le_plus_r.
-      apply IHn with (t := T2); auto. simpl in H1. apply union_incl_2 with (t1 := T1). assumption.
-      apply IHn with (t := (TUnion T1 T2)); assumption.
-    SCase "s = TUnion; t = TUnion: Left".
-      inversion H1.
-      assert ((type_size T1 <= n)%nat). rewrite <- H4. apply le_plus_l.
-      apply IHn with (t := T1); auto. simpl in H1. apply union_incl_1 with (t2 := T2). assumption.
-      apply IHn with (t := (TUnion T1 T2)); assumption.
-    SCase "s = TUnion; t = TUnion: Right".
-      inversion H1.
-      assert ((type_size T2 <= n)%nat). rewrite <- H4. apply le_plus_r.
-      apply IHn with (t := T2); auto. simpl in H1. apply union_incl_2 with (t1 := T1). assumption.
-      apply IHn with (t := (TUnion T1 T2)); assumption.
-    SCase "s = TUnion; t = t: Join".
-      apply SUnionJoin. 
-      apply IHs1 with (t := t); assumption.
-      apply IHs2 with (t := t); assumption.
-    SCase "s = TArrow; t = TUnion: Left".
-      inversion H1.
-      assert ((type_size T1 <= n)%nat). rewrite <- H4. apply le_plus_l.
-      apply IHn with (t := T1); auto. simpl in H1. apply union_incl_1 with (t2 := T2). assumption.
-      apply IHn with (t := (TUnion T1 T2)); assumption.
-    SCase "s = TArrow; t = TUnion: Right".
-      inversion H1.
-      assert ((type_size T2 <= n)%nat). rewrite <- H4. apply le_plus_r.
-      apply IHn with (t := T2); auto. simpl in H1. apply union_incl_2 with (t1 := T1). assumption.
-      apply IHn with (t := (TUnion T1 T2)); assumption.
+    induction s; intros; inversion H; subst; try (discriminate); eauto;
+      inversion H1; eauto;
+      try solve [
+        apply IHn with (t := T1); eauto; rewrite <- H4; apply le_plus_l
+      ];
+      try solve [
+        apply IHn with (t := T2); eauto; rewrite <- H4; apply le_plus_r
+      ].
     SCase "s = TArrow; t = TArrow".
       remember (TArrow A2 W2 R2) as middle.
-      induction H0; try solve [inversion H]; try solve [assumption]; try solve [inversion Heqmiddle].
-      SSCase "u = TUnion: Left".
-        apply SUnionL. apply IHsubtype; assumption.
-      SSCase "u = TUnion: Right".
-        apply SUnionR. apply IHsubtype; assumption.
+      induction H0; try solve [inversion H]; inversion Heqmiddle; subst; eauto.
       SSCase "u = TArrow".
-        inversion Heqmiddle; subst.
-        apply SArrow. 
+        apply SArrow; eauto.
         apply IHn with (t := A2); auto. simpl in H1. omega.
         apply IHn with (t := R2); auto. simpl in H1. omega.
-        apply bcontains_list_trans with (l2 := W2); assumption.
 Qed.
 
 Lemma apply_subtype_res : forall targ1 W1 tres1 tfun targ2 W2 tres2,
