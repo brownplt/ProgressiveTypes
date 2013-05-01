@@ -545,6 +545,8 @@ Inductive has_type : W -> context -> expr -> typ -> Prop :=
       has_type W Gamma e t
 .
 
+
+
 Example ht_lam :
   has_type nil empty (ELam (Id 0) TNum nil (EVar (Id 0))) 
            (TArrow TNum nil TNum)
@@ -561,7 +563,6 @@ Example ht_div0 :
    apply dt_div0. reflexivity.
 Qed.
 
-
 Lemma typing_used_w : forall W G e E w T,
   has_type W G e T ->
   EDecomp e E (EErr w) ->
@@ -569,17 +570,11 @@ Lemma typing_used_w : forall W G e E w T,
 Proof.
   intros.
   generalize dependent E.
-  induction H; intros; try solve [inversion H0]; subst.
-  Case "Error". inversion H0. subst. assumption.
-  Case "App".
-    inversion H2; subst.
-    SCase "AppFun". apply IHhas_type1 in H7. assumption.
-    SCase "AppArg". apply IHhas_type2 in H8. assumption.
-  Case "Prim".
-    inversion H1; subst.
-    SCase "PrimArg". apply IHhas_type in H6. assumption.
-  Case "Subtype".
-    apply IHhas_type in H1. assumption.
+  induction H; intros; try solve [inversion H0]; 
+    match goal with
+      [ H : EDecomp _ _ _ |- _ ] => inversion H
+    end;
+    subst; eauto.
 Qed.
 
 Lemma delta_subtype : forall t1 t2 t' t'' c W,
@@ -825,6 +820,10 @@ Lemma apply_subtype_W : forall targ1 W1 tres1 tfun targ2 W2 tres2,
 Proof.
 Admitted.
 
+Hint Resolve apply_subtype_res.
+Hint Resolve apply_subtype_arg.
+Hint Resolve apply_subtype_W.
+
 
 Lemma apply_subtype : forall targ1 W1 tres1 tfun targ2 W2 tres2,
   subtype (TArrow targ1 W1 tres1) tfun ->
@@ -979,6 +978,7 @@ Proof.
               assert (H_new := invert_lam _ _ _ _ _ _ _ _ H7 H8).
               elim H_new. intros.
               break_ands.
+              eauto.
               apply HTSub with (s := x0). assumption.
               eapply apply_subtype_res with (targ1 := typ0)
                 (W1 := ws)
