@@ -318,6 +318,8 @@ Inductive refl_step_closure {X:Type} (R: relation X)
 
 Definition stepmany := refl_step_closure step.
 
+Hint Unfold stepmany.
+Hint Constructors refl_step_closure.
 
 Example decomp1 :
   EDecomp (EPrim div (EPrim add (ENum 1)))
@@ -628,46 +630,34 @@ Proof.
       SCase "TArrow". inversion H2.
 Qed.
 
-Lemma delta_inv_div_lam : forall s W' u t1 W t,
+Lemma delta_inv_div_lam : forall s W' u t1 W,
   subtype (TArrow s W' u) t1 ->
-  delta_t div t1 W t ->
+  forall t, delta_t div t1 W t ->
   has_error div_lam W = true.
 Proof.
-  intros s W' u t1 W t H H1.
-  generalize dependent t.
+  intros s W' u t1 W H.
   remember (TArrow s W' u) as t_sub.
-  induction H; subst; intros; try solve [inversion Heqt_sub].
-    Case "TRefl". inversion H1.
-      SCase "TLam". assumption.
-    Case "TUnionL".
-      inversion H1; subst.
-      SCase "TUnion". apply IHsubtype with (t := t_left). reflexivity. assumption.
-      SCase "TArrow". inversion H2.
-    Case "TUnionR".
-      inversion H1; subst.
-      SCase "TUnion". apply IHsubtype with (t := t_right). reflexivity. assumption.
-      SCase "TArrow". assumption. inversion H2. subst. assumption.
+  induction H; subst;
+    intros t H_delt;
+    try (inversion Heqt_sub);
+    inversion H_delt;
+    subst;
+    eauto.
 Qed.
 
-Lemma delta_inv_add_lam : forall s W' u t1 W t,
+Lemma delta_inv_add_lam : forall s W' u t1 W,
   subtype (TArrow s W' u) t1 ->
-  delta_t add t1 W t ->
+  forall t, delta_t add t1 W t ->
   has_error add_lam W = true.
 Proof.
-  intros s W' u t1 W t H H1.
-  generalize dependent t.
+  intros s W' u t1 W H.
   remember (TArrow s W' u) as t_sub.
-  induction H; subst; intros; try solve [inversion Heqt_sub].
-    Case "TRefl". inversion H1.
-      SCase "TLam". assumption.
-    Case "TUnionL".
-      inversion H1; subst.
-      SCase "TUnion". apply IHsubtype with (t := t_left). reflexivity. assumption.
-      SCase "TArrow". inversion H2.
-    Case "TUnionR".
-      inversion H1; subst.
-      SCase "TUnion". apply IHsubtype with (t := t_right). reflexivity. assumption.
-      SCase "TArrow". assumption. inversion H2. subst. assumption.
+  induction H; subst;
+    intros t H_delt;
+    try (inversion Heqt_sub);
+    inversion H_delt;
+    subst;
+    eauto.
 Qed.
 
 Lemma app_inv_0 : forall t1 targ W tres,
@@ -893,6 +883,8 @@ Proof.
       apply subtype_transitive with (t := t); assumption.
 Qed.
 
+Hint Resolve invert_0.
+
 Lemma val_not_bottom : forall e W G t,
   has_type W G e t ->
   aval e ->
@@ -958,22 +950,24 @@ Proof.
           apply subst_type with (W1 := ws) (Tx := typ0).
           
           remember (ELam x typ0 ws eb) as elam.
-          inversion H; subst; try solve [inversion H11].
+          inversion H; subst; try solve [inversion H11 | discriminate].
             SSSSCase "HTLam".
               assert (subtype (TArrow targ W2 tres) (TArrow targ W2 tres)).
               apply SRefl.
               assert (foo := apply_subtype targ W2 tres (TArrow targ W2 tres) t2 W0 t H8 H1).
               apply HTSub with (s := tres); break_ands.
               inversion H11. subst. assumption. assumption.
-            SSSSCase "App-ridiculous". inversion H13.
-            SSSSCase "Prim-ridiculous". inversion H12.
             SSSSCase "HTSub".
-              assert (exists tres,
-                has_type W0 Gamma (ELam x typ0 ws eb) (TArrow typ0 ws tres) /\
-                has_type ws (extend Gamma x typ0) eb tres /\
-                subtype (TArrow typ0 ws tres) s).
-              apply invert_lam with (t1 := s). assumption. apply SRefl.
-              elim H9. intros.
+                assert (H_new := invert_lam _ _ _ _ _ _ _ _ H7 H8).
+(*            match goal with
+              [ H : has_type _ _ (ELam _ _ _ _) ?s,
+                H_sub : subtype ?s _
+            |- _ ] =>
+              let H_new := fresh "H_new" in
+                assert (H_new := invert_lam _ _ _ _ _ _ _ _ H H_sub)
+            end.*)
+
+              elim H_new. intros.
               break_ands.
               apply HTSub with (s := x0). assumption.
               eapply apply_subtype_res with (targ1 := typ0)
@@ -983,8 +977,9 @@ Proof.
                 (W2 := W0)
                 (tres2 := t)
                 (targ2 := t2).
-              apply subtype_transitive with (t := s); assumption. assumption.
-              assumption. (* aval precondition for subst_type *)
+              assumption. assumption. assumption.
+(*              apply subtype_transitive with (t := s); assumption. assumption.
+              assumption. (* aval precondition for subst_type *)*)
 
               assert (exists tres,
                 has_type W0 Gamma (ELam x typ0 ws eb) (TArrow typ0 ws tres) /\
@@ -1225,7 +1220,8 @@ Proof.
         unfold not. intro. inversion H6. subst. inversion H4.
         destruct ae1; try solve [inversion H9].
         SSCase "Num".
-          admit.
+          destruct (Qeq_dec q 0);
+          admit. (* TODO(joe): now we know how to destruct correctly *)
         SSCase "Lam".
           exists (e_plug E (e_subst i ae2 ae1)).
           apply StepCxt with (E := E)
