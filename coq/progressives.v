@@ -906,6 +906,24 @@ Lemma subst_type : forall e x v G T W1 W2 Tx,
 Proof.
 Admitted.
 
+Hint Extern 1 =>
+  match goal with
+    [ H : has_type _ _ (ELam _ _ _ _) ?s,
+      H_sub : subtype ?s _
+      |- _ ] =>
+    let H_new := fresh "H_new" in
+      assert (H_new := invert_lam _ _ _ _ _ _ _ _ H H_sub)
+  | [
+      H_sub : subtype ?s _,
+      H : has_type _ _ (ELam _ _ _ _) ?s
+      |- _ ] =>
+    let H_new := fresh "H_new" in
+      assert (H_new := invert_lam _ _ _ _ _ _ _ _ H H_sub)
+
+  end.
+
+
+
 Theorem preservation : forall e e' W T,
      has_type W empty e T  ->
      step e e'  ->
@@ -958,15 +976,7 @@ Proof.
               apply HTSub with (s := tres); break_ands.
               inversion H11. subst. assumption. assumption.
             SSSSCase "HTSub".
-                assert (H_new := invert_lam _ _ _ _ _ _ _ _ H7 H8).
-(*            match goal with
-              [ H : has_type _ _ (ELam _ _ _ _) ?s,
-                H_sub : subtype ?s _
-            |- _ ] =>
-              let H_new := fresh "H_new" in
-                assert (H_new := invert_lam _ _ _ _ _ _ _ _ H H_sub)
-            end.*)
-
+              assert (H_new := invert_lam _ _ _ _ _ _ _ _ H7 H8).
               elim H_new. intros.
               break_ands.
               apply HTSub with (s := x0). assumption.
@@ -978,28 +988,19 @@ Proof.
                 (tres2 := t)
                 (targ2 := t2).
               assumption. assumption. assumption.
-(*              apply subtype_transitive with (t := s); assumption. assumption.
-              assumption. (* aval precondition for subst_type *)*)
 
-              assert (exists tres,
-                has_type W0 Gamma (ELam x typ0 ws eb) (TArrow typ0 ws tres) /\
-                has_type ws (extend Gamma x typ0) eb tres /\
-                subtype (TArrow typ0 ws tres) t1).
-              apply invert_lam with (t1 := t1). assumption. apply SRefl.
-              elim H7. intros.
+              assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H).
+              elim H_new. intros.
               break_ands.
               apply apply_subtype_W with (targ1 := typ0)
                                       (tres1 := x0)
                                       (tfun := t1)
                                       (targ2 := t2)
                                       (tres2 := t); assumption.
+              constructor.
 
-              assert (exists tres,
-                has_type W0 Gamma (ELam x typ0 ws eb) (TArrow typ0 ws tres) /\
-                has_type ws (extend Gamma x typ0) eb tres /\
-                subtype (TArrow typ0 ws tres) t1).
-              apply invert_lam with (t1 := t1). assumption. apply SRefl.
-              elim H7. intros.
+              assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H).
+              elim H_new. intros.
               break_ands.
               apply HTSub with (s := t2). assumption.
               apply apply_subtype_arg with
@@ -1008,6 +1009,7 @@ Proof.
                                       (tres2 := t)
                                       (W1 := ws)
                                       (W2 := W0); assumption.
+              constructor.
         SSSCase "AppN".
           apply HTErr.
           apply app_inv_n with (t1 := t1) (targ := t2) (tres := t).
