@@ -8,6 +8,10 @@ Ltac break_ands :=
            [ H : _ /\ _ |- _ ] => inversion H; clear H
          end.
 
+Hint Extern 1 =>
+  match goal with
+    [ H : _ /\ _ |- _ ] => inversion H; clear H
+  end.
 
 Definition beq_id X1 X2 :=
   match (X1, X2) with
@@ -28,7 +32,11 @@ Inductive w : Type :=
   | app_0 : w
 .
 
+Hint Constructors w.
+
 Definition W := list w.
+
+Hint Unfold W.
 
 Fixpoint beq_w w w' :=
   match w, w' with
@@ -46,6 +54,8 @@ Inductive c : Type :=
   | add : c
 .
 
+Hint Constructors c.
+
 Inductive typ : Type :=
   | TBot
   | TZero : typ
@@ -56,6 +66,8 @@ Inductive typ : Type :=
 (*| TRec : id -> typ -> typ
   | TId : id -> typ *)
 .
+
+Hint Constructors typ.
 
 Fixpoint beq_list_w lw lw' :=
   match lw, lw' with
@@ -116,11 +128,14 @@ Inductive expr : Type :=
   | EPrim : c -> expr -> expr
 .
 
+Hint Constructors expr.
+
 Inductive aval : expr -> Prop :=
   | av_num : forall n, aval (ENum n)
   | av_lam : forall id typ ws expr, aval (ELam id typ ws expr)
 .
 
+Hint Constructors aval.
 
 Inductive cxt : Type :=
   | EHole : cxt
@@ -129,15 +144,21 @@ Inductive cxt : Type :=
   | EPrimArg : c -> cxt -> cxt
 .
 
+Hint Constructors cxt.
+
 Inductive ActExp : expr -> Prop :=
   | ActPrim : forall c e, aval e -> ActExp (EPrim c e)
   | ActApp : forall e1 e2, aval e1 -> aval e2 -> ActExp (EApp e1 e2)
 .
 
+Hint Constructors ActExp.
+
 Inductive HoleFiller : expr -> Prop :=
   | HFErr : forall w, HoleFiller (EErr w)
   | HFAct : forall e, ActExp e -> HoleFiller e
 .
+
+Hint Constructors HoleFiller.
 
 Inductive EDecomp : expr -> cxt -> expr -> Prop :=
   | CxtHole : forall ae, HoleFiller ae -> EDecomp ae EHole ae
@@ -152,6 +173,8 @@ Inductive EDecomp : expr -> cxt -> expr -> Prop :=
                    EDecomp earg EC ae ->
                    EDecomp (EPrim c earg) (EPrimArg c EC) ae
 .
+
+Hint Constructors EDecomp.
 
 Fixpoint e_plug (c: cxt) (e: expr) : expr :=
   match c with    
@@ -179,54 +202,47 @@ Inductive closed : Env -> expr -> Prop :=
       closed env e -> closed env (EPrim c e)
 .
 
+Hint Constructors closed.
+
 Lemma decomp_expr: forall e,
   closed empty e ->
   (exists E ae, HoleFiller ae /\ EDecomp e E ae) \/ aval e.
-Proof.
+Proof with eauto.
   intros.
-  induction e; try solve [right; constructor].
-  Case "Var". inversion H. inversion H2.
+  induction e; auto; inversion H.
+  Case "Var". discriminate.
   Case "Err".
-    left. exists EHole. exists (EErr w0).
-    split; constructor. constructor.
+    left. exists EHole. exists (EErr w0)...
   Case "App".
-    left. inversion H. apply IHe1 in H3.
+    left. apply IHe1 in H3.
     inversion H3.
     SCase "e1 decomposed".
-      elim H5. intros E' H'. elim H'. intro ae. intros.
+      elim H5. intros E' H'. elim H'. intro ae.
+      intros.
       exists (EAppFun E' e2).
-      exists ae.
-      break_ands.
-      split. assumption.
-      apply CxtAppFun. assumption.
+      exists ae...
     SCase "e1 was a value".
       inversion H. subst.  apply IHe2 in H4. inversion H4.
       SSCase "e2 decomposed".
         elim H0. intros E' H'. elim H'. intro ae. intros.
         exists (EAppArg e1 E').
-        exists ae.
-        break_ands.
-        split. assumption.
-        apply CxtAppArg; assumption.
+        exists ae...
       SSCase "e2 was a value".
         exists EHole. exists (EApp e1 e2).
-        split. constructor. constructor; assumption.
-        apply CxtHole. constructor. constructor; assumption.
+        split...
 
   Case "Prim".
-    left. inversion H. apply IHe in H2. inversion H2.
+    left. apply IHe in H2. inversion H2.
     SCase "e decomposed".
       elim H4. intros E' H'. elim H'. intro ae. intros.
       exists (EPrimArg c0 E').
-      exists ae.
-      break_ands.
-      split. assumption.
-      apply CxtPrimArg. assumption.
+      exists ae...
     SCase "e was a value".
       exists EHole. exists (EPrim c0 e).
-      split. constructor. constructor; assumption.
-      apply CxtHole. constructor. constructor; assumption.
+      split...
 Qed.
+
+Hint Resolve decomp_expr.
 
 Fixpoint e_subst (x: id) (s: expr) (t: expr) : expr :=
   match t with
@@ -259,6 +275,8 @@ Inductive delt : c -> expr -> expr -> Prop :=
    delt add (ELam x typ ws  e) (EErr add_lam)
 .
 
+Hint Constructors delt.
+
 Inductive cxt_step : expr -> expr -> Prop :=
  | CStepApp : forall x typ ws eb ea,
    aval ea ->
@@ -276,6 +294,8 @@ Inductive cxt_step : expr -> expr -> Prop :=
    cxt_step (EPrim c ea) ea'
 .
 
+Hint Constructors cxt_step.
+
 Inductive step : expr -> expr -> Prop :=
  | StepCxt : forall e E ae ae' e',
    EDecomp e E ae ->
@@ -288,6 +308,8 @@ Inductive step : expr -> expr -> Prop :=
    EDecomp e E (EErr w) ->
    step e (EErr w)
 .
+
+Hint Constructors step.
 
 Example step1 :
   cxt_step (EPrim div (ENum 1)) (ENum 1)
@@ -391,6 +413,8 @@ Inductive delta_t : c -> typ -> list w -> typ -> Prop :=
     delta_t add typ_arrow lw2 TBot
 .
 
+Hint Constructors delta_t.
+
 Example divide_by_0 :
   delta_t div TZero (div_0 :: nil) TBot
 .
@@ -442,6 +466,8 @@ Inductive apply_t : typ -> typ -> list w -> typ -> Prop :=
     apply_t union_typ t' lw result_typ
 .
 
+Hint Constructors apply_t.
+
 Example app_union :
   apply_t (TUnion (TArrow TNum nil TZero) TNum) TNum (app_n :: nil)
           (TUnion TZero TBot)
@@ -486,6 +512,7 @@ Inductive subtype : typ -> typ -> Prop :=
       subtype (TArrow A1 W1 R1) (TArrow A2 W2 R2)
 .
 
+Hint Constructors subtype.
 
 Definition partial_map (A:Type) := id -> option A.
 
@@ -545,13 +572,14 @@ Inductive has_type : W -> context -> expr -> typ -> Prop :=
       has_type W Gamma e t
 .
 
+Hint Constructors has_type.
 
 
 Example ht_lam :
   has_type nil empty (ELam (Id 0) TNum nil (EVar (Id 0))) 
            (TArrow TNum nil TNum)
 .
-  apply HTLam. apply HTVar. reflexivity.
+  eauto.
 Qed.
 
 Example ht_div0 :
@@ -591,38 +619,29 @@ Lemma canonical_forms : forall W G e T,
   forall n, n == 0 has_type W G (ENum n) T -> 
 *)
 Lemma inv_nonzero : forall q, ~ (/ q == 0) -> ~ (q == 0).
-Proof. admit.
-(*  intros. intro. apply H. destruct q. unfold Qinv in *. simpl in *.
-  destruct (Z.eq_dec Qnum 0%Z); subst. reflexivity. inversion H0; omega.*)
+Proof. 
+  intros. intro. apply H. destruct q. unfold Qinv in *. simpl in *.
+  destruct (Z.eq_dec Qnum 0%Z); subst. reflexivity. inversion H0; omega.
 Qed.
 
 Lemma inv_zeronon : forall q, ~ q == 0 -> ~ / q == 0.
-Proof. admit.
-(*  intros. intro. apply H. destruct q. unfold Qinv in *. simpl in *.
+Proof.
+  intros. intro. apply H. destruct q. unfold Qinv in *. simpl in *.
   destruct (Z.eq_dec Qnum 0%Z); subst. reflexivity.
-  destruct Qnum; simpl in *. contradiction. inversion H0. inversion H0. *)
+  destruct Qnum; simpl in *. contradiction. inversion H0. inversion H0.
 Qed.
 
-Lemma delta_inv_div_0 : forall t1 W t,
+Lemma delta_inv_div_0 : forall t1 W,
   subtype TZero t1 ->
-  delta_t div t1 W t ->
+  forall t, delta_t div t1 W t ->
   has_error div_0 W = true.
 Proof.
-  intros t1 W t H H1.
-  generalize dependent t.
+  intros t1 W H.
   remember TZero as t_sub.
-  induction H; subst; intros; try solve [inversion Heqt_sub].
-    Case "TRefl". inversion H1.
-      SCase "TZero". assumption.
-      SCase "TLam". inversion H0.
-    Case "TUnionL".
-      inversion H1; subst.
-      SCase "TUnion". apply IHsubtype with (t := t_left). reflexivity. assumption.
-      SCase "TArrow". inversion H2.
-    Case "TUnionR".
-      inversion H1; subst.
-      SCase "TUnion". apply IHsubtype with (t := t_right). reflexivity. assumption.
-      SCase "TArrow". inversion H2.
+  induction H; subst; intros; try (inversion Heqt_sub);
+    match goal with
+      [ H : delta_t _ _ _ _ |- _ ] => inversion H
+    end; try (discriminate); eauto.
 Qed.
 
 Lemma delta_inv_div_lam : forall s W' u t1 W,
@@ -632,12 +651,10 @@ Lemma delta_inv_div_lam : forall s W' u t1 W,
 Proof.
   intros s W' u t1 W H.
   remember (TArrow s W' u) as t_sub.
-  induction H; subst;
-    intros t H_delt;
-    try (inversion Heqt_sub);
-    inversion H_delt;
-    subst;
-    eauto.
+  induction H; subst; intros; try (inversion Heqt_sub);
+    match goal with
+      [ H : delta_t _ _ _ _ |- _ ] => inversion H
+    end; try (discriminate); eauto.
 Qed.
 
 Lemma delta_inv_add_lam : forall s W' u t1 W,
@@ -647,66 +664,38 @@ Lemma delta_inv_add_lam : forall s W' u t1 W,
 Proof.
   intros s W' u t1 W H.
   remember (TArrow s W' u) as t_sub.
-  induction H; subst;
-    intros t H_delt;
-    try (inversion Heqt_sub);
-    inversion H_delt;
-    subst;
-    eauto.
+  induction H; subst; intros; try (inversion Heqt_sub);
+    match goal with
+      [ H : delta_t _ _ _ _ |- _ ] => inversion H
+    end; try (discriminate); eauto.
 Qed.
 
-Lemma app_inv_0 : forall t1 targ W tres,
+Lemma app_inv_0 : forall t1 targ W,
   subtype TZero t1 ->
-  apply_t t1 targ W tres ->
+  forall tres, apply_t t1 targ W tres ->
   ~ (targ = TBot) ->
   has_error app_0 W = true.
 Proof.
-  intros.
-  generalize dependent tres.
-  remember TZero as tz.
-  induction H; subst; intros; try solve [inversion Heqtz].
-  Case "TRefl".
-    inversion H0; subst;
-      try solve [contradict H1; reflexivity];
-      try solve [assumption];
-      try solve [inversion H4].
-  Case "UnionL".
-    inversion H0; subst;
-      try solve [contradict H1; reflexivity];
-      inversion H5; subst.
-    apply IHsubtype with (tres := left_typ). reflexivity. assumption.
-  Case "UnionR".
-    inversion H0; subst;
-      try solve [contradict H1; reflexivity];
-      inversion H5; subst.
-    apply IHsubtype with (tres := right_typ). reflexivity. assumption.
+  intros t1 targ W H.
+  remember TZero as t_sub.
+  induction H; subst; intros; try (inversion Heqt_sub);
+    match goal with
+      [ H : apply_t _ _ _ _ |- _ ] => inversion H
+    end; try (discriminate); try (inversion H5); subst; eauto.
 Qed.
 
-Lemma app_inv_n : forall t1 targ W tres,
+Lemma app_inv_n : forall t1 targ W,
   subtype TNum t1 ->
-  apply_t t1 targ W tres ->
+  forall tres, apply_t t1 targ W tres ->
   ~ (targ = TBot) ->
   has_error app_n W = true.
 Proof.
-  intros.
-  generalize dependent tres.
-  remember TNum as tn.
-  induction H; subst; intros; try solve [inversion Heqtn].
-  Case "TRefl".
-    inversion H0; subst;
-      try solve [contradict H1; reflexivity];
-      try solve [assumption];
-      try solve [inversion H4].
-  Case "UnionL".
-    inversion H0; subst;
-      try solve [contradict H1; reflexivity];
-      inversion H5; subst.
-    apply IHsubtype with (tres := left_typ). reflexivity. assumption.
-  Case "UnionR".
-    inversion H0; subst;
-      try solve [contradict H1; reflexivity];
-      inversion H5; subst.
-    apply IHsubtype with (tres := right_typ). reflexivity. assumption.
+  intros t1 targ W H.
+  remember TNum as t_sub.
+  induction H; subst; intros; try (inversion Heqt_sub);
+    match goal with
+      [ H : apply_t _ _ _ _ |- _ ] => inversion H
+    end; try (discriminate); try (inversion H5); subst; eauto.
 Qed.
 
 Fixpoint type_size t : nat :=
