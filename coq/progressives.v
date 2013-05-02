@@ -461,6 +461,27 @@ Proof.
   apply dt_addN.
 Qed.
 
+Lemma beq_list_eq : forall lw lw', beq_list_w lw lw' = true -> lw = lw'.
+Proof.
+  induction lw; destruct lw'; simpl; auto; intros; try (discriminate).
+  apply andb_true_iff in H.
+  break_ands.
+  f_equal; auto.
+  destruct a; destruct w0; simpl in H0; solve [auto | discriminate].
+Qed.
+
+Lemma beq_typ_eq : forall s t, beq_typ s t = true -> s = t.
+Proof.
+  induction s; destruct t; simpl; intros; try solve [auto | tauto | discriminate];
+  apply andb_true_iff in H; f_equal; auto.
+  break_ands.
+  apply andb_true_iff in H1. break_ands.
+  apply beq_list_eq in H2. assumption.
+  break_ands.
+  apply andb_true_iff in H1. break_ands. auto.
+Qed.
+
+
 Inductive apply_t : typ -> typ -> list w -> typ -> Prop :=
   | at_bot1 : forall t lw, apply_t t TBot lw TBot
   | at_bot2 : forall t lw, apply_t TBot t lw TBot
@@ -631,12 +652,36 @@ Qed.
 
 Hint Resolve typing_used_w.
 
+Lemma delta_injective : forall c t lw t' t'',
+  delta_t c t lw t' ->
+  delta_t c t lw t'' ->
+  t' = t''.
+Proof.
+  intros. generalize dependent t''.
+  induction H; intros; try solve [
+    match goal with
+      [ H : delta_t _ _ _ _ |- _ ] => inversion H
+    end; solve [auto | subst; discriminate]].
+    inversion H1; subst; auto. f_equal; auto.
+Qed.
+    
+
 Lemma delta_subtype : forall t1 t2 t' t'' c W,
   subtype t1 t2 ->
   delta_t c t1 W t' ->
   delta_t c t2 W t'' ->
   subtype t' t''.
-Proof. Admitted.
+Proof.
+  intros.
+  generalize dependent t'. generalize dependent t''.
+  induction H; intros.
+    inversion H0; constructor. assert (t' = t''). eapply delta_injective; eauto. subst. auto.
+    inversion H1; subst; auto.
+    inversion H1; subst; auto.
+    inversion H2; subst; auto.
+    inversion H2; subst; inversion H3; subst; auto.
+Qed.
+
 
 (*
 Lemma canonical_forms : forall W G e T,
@@ -736,12 +781,18 @@ Fixpoint type_size t : nat :=
 Lemma union_incl_1 : forall t1 t2 t3, 
   subtype (TUnion t1 t2) t3 -> subtype t1 t3.
 Proof.
-  Admitted.
+  intros. remember (TUnion t1 t2) as t_union. induction H; eauto.
+  subst. eauto.
+  inversion Heqt_union. subst. assumption.
+Qed.
 
 Lemma union_incl_2 : forall t1 t2 t3, 
   subtype (TUnion t1 t2) t3 -> subtype t2 t3.           
 Proof.
-  Admitted.
+  intros. remember (TUnion t1 t2) as t_union. induction H; eauto.
+  subst. eauto.
+  inversion Heqt_union. subst. assumption.
+Qed.
 
 Hint Resolve union_incl_1.
 Hint Resolve union_incl_2.
@@ -776,30 +827,60 @@ Qed.
 
 Hint Resolve subtype_transitive.
 
+Lemma apply_subtype : forall targ1 W1 tres1 tfun targ2 W2 tres2,
+  subtype (TArrow targ1 W1 tres1) tfun ->
+  apply_t tfun targ2 W2 tres2 ->
+  ~ (subtype targ2 TBot) ->
+  (subtype tres1 tres2) /\ (subtype targ2 targ1) /\ (bcontains_list_w W1 W2 = true).
+Proof.
+  intros.
+  remember (TArrow targ1 W1 tres1) as arr_typ.
+  remember targ1 as arg_typ.
+  generalize dependent tres2.
+  induction H; try solve [intros; subst; discriminate].
+  intros.
+  induction H0; try solve [discriminate].
+    contradict H1. auto.
+    subst. inversion H3. split; auto. split; auto. apply beq_typ_eq in H0. subst; auto.
+    subst. inversion H0.
+    
+    intros. inversion H0; subst; try solve [discriminate].
+      contradict H1. constructor. inversion H5. subst.
+        split. apply subtype_transitive with (t := left_typ). apply IHsubtype; auto. auto.
+        assert (subtype tres1 left_typ /\ subtype targ2 targ1 /\ bcontains_list_w W1 W2 = true).
+        apply IHsubtype; auto. split; break_ands; auto.
+    intros. inversion H0; subst; try solve [discriminate].
+      contradict H1. constructor. inversion H5. subst.
+        split. apply subtype_transitive with (t := right_typ). apply IHsubtype; auto. auto.
+        assert (subtype tres1 right_typ /\ subtype targ2 targ1 /\ bcontains_list_w W1 W2 = true).
+        apply IHsubtype; auto. split; break_ands; auto.
+      
+    intros. inversion Heqarr_typ. subst.
+    inversion H3; subst. contradict H1. constructor.
+    inversion H7. subst. repeat split; auto. apply beq_typ_eq in H5. subst. assumption.
+    eauto.
+    inversion H7.
+Qed.
+
+
 Lemma apply_subtype_res : forall targ1 W1 tres1 tfun targ2 W2 tres2,
   subtype (TArrow targ1 W1 tres1) tfun ->
   ~ (subtype targ2 TBot) ->
   apply_t tfun targ2 W2 tres2 ->
   subtype tres1 tres2.
 Proof.
-  Admitted.
-(*  intros.
-  remember (TArrow targ1 W1 tres1) as arr_typ.
-  remember targ1 as arg_typ.
-  induction H; try solve [discriminate].
-  induction H1; try solve [discriminate].
-    contradict H0. auto.
-    subst. inversion H3. constructor.
-    apply subtype_transitive with (t := left_typ). *)
-    
-
+  intros.
+  assert (ans := apply_subtype _ _ _ _ _ _ _ H H1 H0). auto.
+Qed.
 Lemma apply_subtype_arg : forall targ1 W1 tres1 tfun targ2 W2 tres2,
   subtype (TArrow targ1 W1 tres1) tfun ->
   ~ (subtype targ2 TBot) ->
   apply_t tfun targ2 W2 tres2 ->
   subtype targ2 targ1.
 Proof.
-Admitted.
+  intros.
+  assert (ans := apply_subtype _ _ _ _ _ _ _ H H1 H0). auto.
+Qed.
 
 Lemma apply_subtype_W : forall targ1 W1 tres1 tfun targ2 W2 tres2,
   subtype (TArrow targ1 W1 tres1) tfun ->
@@ -807,22 +888,13 @@ Lemma apply_subtype_W : forall targ1 W1 tres1 tfun targ2 W2 tres2,
   apply_t tfun targ2 W2 tres2 ->
   bcontains_list_w W1 W2 = true.
 Proof.
-Admitted.
-
+  intros.
+  assert (ans := apply_subtype _ _ _ _ _ _ _ H H1 H0). auto.
+Qed.
 
 Hint Resolve apply_subtype_res.
 Hint Resolve apply_subtype_arg.
 Hint Resolve apply_subtype_W.
-
-
-Lemma apply_subtype : forall targ1 W1 tres1 tfun targ2 W2 tres2,
-  subtype (TArrow targ1 W1 tres1) tfun ->
-  apply_t tfun targ2 W2 tres2 ->
-  ~ (subtype targ2 TBot) ->
-  (subtype tres1 tres2) /\ (subtype targ2 targ1) /\ (bcontains_list_w W1 W2 = true).
-Proof.
-Admitted.
-
 Hint Resolve apply_subtype.
 
 Lemma invert_lam : forall x t w e W G t1 t2,
