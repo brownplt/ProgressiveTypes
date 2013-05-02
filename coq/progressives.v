@@ -9,7 +9,7 @@ Ltac break_ands :=
            [ H : _ /\ _ |- _ ] => inversion H; clear H
          end.
 
-Hint Extern 1 =>
+Hint Extern 2 =>
   match goal with
     [ H : _ /\ _ |- _ ] => inversion H; clear H
   end.
@@ -68,7 +68,7 @@ Inductive typ : Type :=
   | TId : id -> typ *)
 .
 
-Hint Extern 1 =>
+Hint Extern 4 =>
   match goal with 
     | [ H : TBot = ?t |- _ ] => inversion H
     | [ H : TZero = ?t |- _ ] => inversion H
@@ -141,7 +141,7 @@ Inductive expr : Type :=
   | EPrim : c -> expr -> expr
 .
 
-Hint Extern 1 =>
+Hint Extern 4 =>
   match goal with 
     | [ H : ENum _ = ?t |- _ ] => inversion H
     | [ H : ELam _ _ _ _ = ?t |- _ ] => inversion H
@@ -308,9 +308,9 @@ Inductive cxt_step : expr -> expr -> Prop :=
  | CStepAppNum : forall n ea,
    aval ea -> not (Qeq n 0) ->
    cxt_step (EApp (ENum n) ea) (EErr app_n)
- | CStepApp0 : forall ea,
-   aval ea ->
-   cxt_step (EApp (ENum 0) ea) (EErr app_0)
+ | CStepApp0 : forall n ea,
+   aval ea -> Qeq n 0 ->
+   cxt_step (EApp (ENum n) ea) (EErr app_0)
 
  | CStepPrim : forall c ea ea',
    aval ea ->
@@ -462,8 +462,8 @@ Proof.
 Qed.
 
 Inductive apply_t : typ -> typ -> list w -> typ -> Prop :=
-  | at_bot1 : forall t lw, apply_t TBot t lw TBot
-  | at_bot2 : forall t lw, apply_t t TBot lw TBot
+  | at_bot1 : forall t lw, apply_t t TBot lw TBot
+  | at_bot2 : forall t lw, apply_t TBot t lw TBot
 
   | at_zero : forall t lw,
     ~ (t = TBot) ->
@@ -629,6 +629,8 @@ Proof.
     subst; eauto.
 Qed.
 
+Hint Resolve typing_used_w.
+
 Lemma delta_subtype : forall t1 t2 t' t'' c W,
   subtype t1 t2 ->
   delta_t c t1 W t' ->
@@ -697,7 +699,7 @@ Qed.
 Lemma app_inv_0 : forall t1 targ W,
   subtype TZero t1 ->
   forall tres, apply_t t1 targ W tres ->
-  ~ (targ = TBot) ->
+  ~ (subtype targ TBot) ->
   has_error app_0 W = true.
 Proof.
   intros t1 targ W H.
@@ -711,7 +713,7 @@ Qed.
 Lemma app_inv_n : forall t1 targ W,
   subtype TNum t1 ->
   forall tres, apply_t t1 targ W tres ->
-  ~ (targ = TBot) ->
+  ~ (subtype targ TBot) ->
   has_error app_n W = true.
 Proof.
   intros t1 targ W H.
@@ -772,15 +774,28 @@ Proof.
         apply IHn with (t := R2); auto. simpl in H1. omega.
 Qed.
 
+Hint Resolve subtype_transitive.
+
 Lemma apply_subtype_res : forall targ1 W1 tres1 tfun targ2 W2 tres2,
   subtype (TArrow targ1 W1 tres1) tfun ->
+  ~ (subtype targ2 TBot) ->
   apply_t tfun targ2 W2 tres2 ->
   subtype tres1 tres2.
 Proof.
-Admitted.
+  Admitted.
+(*  intros.
+  remember (TArrow targ1 W1 tres1) as arr_typ.
+  remember targ1 as arg_typ.
+  induction H; try solve [discriminate].
+  induction H1; try solve [discriminate].
+    contradict H0. auto.
+    subst. inversion H3. constructor.
+    apply subtype_transitive with (t := left_typ). *)
+    
 
 Lemma apply_subtype_arg : forall targ1 W1 tres1 tfun targ2 W2 tres2,
   subtype (TArrow targ1 W1 tres1) tfun ->
+  ~ (subtype targ2 TBot) ->
   apply_t tfun targ2 W2 tres2 ->
   subtype targ2 targ1.
 Proof.
@@ -788,10 +803,12 @@ Admitted.
 
 Lemma apply_subtype_W : forall targ1 W1 tres1 tfun targ2 W2 tres2,
   subtype (TArrow targ1 W1 tres1) tfun ->
+  ~ (subtype targ2 TBot) ->
   apply_t tfun targ2 W2 tres2 ->
   bcontains_list_w W1 W2 = true.
 Proof.
 Admitted.
+
 
 Hint Resolve apply_subtype_res.
 Hint Resolve apply_subtype_arg.
@@ -801,6 +818,7 @@ Hint Resolve apply_subtype_W.
 Lemma apply_subtype : forall targ1 W1 tres1 tfun targ2 W2 tres2,
   subtype (TArrow targ1 W1 tres1) tfun ->
   apply_t tfun targ2 W2 tres2 ->
+  ~ (subtype targ2 TBot) ->
   (subtype tres1 tres2) /\ (subtype targ2 targ1) /\ (bcontains_list_w W1 W2 = true).
 Proof.
 Admitted.
@@ -817,8 +835,7 @@ Lemma invert_lam : forall x t w e W G t1 t2,
 Proof.
   intros.
   remember (ELam x t w0 e) as elam.
-  induction H; inversion Heqelam; subst; eauto. Grab Existential Variables.
-  assumption. assumption. assumption. assumption. assumption. assumption.
+  induction H; inversion Heqelam; subst; eauto.
 Qed.
 
 Lemma invert_num : forall n t1 t2 W G,
@@ -829,41 +846,19 @@ Lemma invert_num : forall n t1 t2 W G,
 Proof.
   intros.
   remember (ENum n) as num.
-  induction H0; inversion Heqnum; subst; eauto. Grab Existential Variables.
-  assumption.
-  assumption.
-  assumption.
-  assumption.
-  assumption.
-  assumption.
-  assumption.
-  assumption.
-  assumption.
-  assumption.
-  assumption.
-  assumption.
+  induction H0; inversion Heqnum; subst. contradiction.
+  eauto. eauto.
 Qed.
 
-Lemma invert_0 : forall t1 t2 W G,
-  has_type W G (ENum 0) t1 ->
+Lemma invert_0 : forall n t1 t2 W G,
+  Qeq n 0 ->
+  has_type W G (ENum n) t1 ->
   subtype t1 t2 ->
   subtype TZero t2.
 Proof.
   intros.
-  remember (ENum 0) as num.
-  induction H; inversion Heqnum; subst; eauto. Grab Existential Variables.
-    assumption.
-    assumption.
-    assumption.
-    assumption.
-    assumption.
-    assumption.
-    assumption.
-    assumption.
-    assumption.
-    assumption.
-    assumption.
-    assumption.
+  remember (ENum n) as num.
+  induction H0; inversion Heqnum. assumption.  assert (n == 0). assumption. subst. contradiction. apply IHhas_type. assumption. subst. apply subtype_transitive with (t := t); assumption.
 Qed.
 
 Hint Resolve invert_0.
@@ -880,6 +875,8 @@ Proof.
       apply subtype_transitive with (t := t); assumption.
 Qed.
 
+Hint Resolve val_not_bottom.
+
 Lemma subst_type : forall e x v G T W1 W2 Tx,
   has_type W1 (extend G x Tx) e T ->
   aval v ->
@@ -889,7 +886,8 @@ Lemma subst_type : forall e x v G T W1 W2 Tx,
 Proof.
 Admitted.
 
-Hint Extern 1 =>
+
+Hint Extern 4 =>
   match goal with
     [ H : has_type _ _ (ELam _ _ _ _) ?s,
       H_sub : subtype ?s _
@@ -935,20 +933,34 @@ Proof.
             SSSSCase "HTLam".
               assert (subtype (TArrow targ W2 tres) (TArrow targ W2 tres)).
               apply SRefl.
-              assert (foo := apply_subtype targ W2 tres (TArrow targ W2 tres) t2 W0 t H8 H1).
+              assert (~ (subtype t2 TBot)).
+              apply val_not_bottom with (e := e2) (W := W0) (G := Gamma); assumption.
+              assert (foo := apply_subtype targ W2 tres (TArrow targ W2 tres) t2 W0 t H8 H1 H9).
+              
               apply HTSub with (s := tres); break_ands.
               inversion H11. subst. assumption. assumption.
             SSSSCase "HTSub".
               assert (H_new := invert_lam _ _ _ _ _ _ _ _ H7 H8).
-              elim H_new; intros; eauto.
-              
+              elim H_new; intros t' H_ands; eauto.
+              break_ands. apply HTSub with (s := t'). assumption. 
+              assert (~ (subtype t2 TBot)).
+              apply val_not_bottom with (e := e2) (W := W0) (G := Gamma); assumption.
+              eauto.
+
           assumption.
 
-          assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H).
-          elim H_new; intros; eauto.
+          assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1)).
+          elim H_new; intros. break_ands.
+          assert (~ (subtype t2 TBot)).
+          apply val_not_bottom with (e := e2) (W := W0) (G := Gamma); assumption.
+          eauto.
 
-          assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H).
-          elim H_new; intros; eauto.
+          assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1)).
+          elim H_new; intros. break_ands.
+          assert (~ (subtype t2 TBot)).
+          apply val_not_bottom with (e := e2) (W := W0) (G := Gamma); assumption.
+          eauto.
+
         SSSCase "AppN".
           apply HTErr.
           apply app_inv_n with (t1 := t1) (targ := t2) (tres := t).
@@ -962,32 +974,21 @@ Proof.
             SSSSCase "TNum <: t0".
               apply invert_num with (n := n) (t1 := s) (W := W0) (G := Gamma).
               assumption. assumption. assumption.
-            assumption.
-            
-            induction H0; subst; try solve [discriminate]; try solve [inversion H9].
-            assert (~ (subtype t0 TBot)).
-            apply val_not_bottom with (e := e) (W := W0) (G := Gamma).
-            apply HTSub with (s := s); assumption.
-            assumption. contradict H8. subst. apply SRefl.
+            assumption. eauto.
         SSSCase "App0".
           apply HTErr.
           apply app_inv_0 with (t1 := t1) (targ := t2) (tres := t).
-          remember (ENum 0) as the_num.
+          remember (ENum n) as the_num.
           induction H; subst;
                        try solve [inversion Heqthe_num];
                        try inversion Heqthe_num;
                        subst.
             SSSSCase "Zeros are zeros". apply SRefl.
-            SSSSCase "Number". contradict H. reflexivity.
+            SSSSCase "Number". contradict H. assumption.
             SSSSCase "TNum <: t0".
-              apply invert_0 with (t1 := s) (W := W0) (G := Gamma).
-              assumption. assumption. assumption.
-            
-            induction H0; subst; try solve [discriminate]; try solve [inversion H10].
-            assert (~ (subtype t0 TBot)).
-            apply val_not_bottom with (e := e) (W := W0) (G := Gamma).
-            apply HTSub with (s := s); assumption.
-            assumption. contradict H8. subst. apply SRefl.
+              apply invert_0 with (n := n) (t1 := s) (W := W0) (G := Gamma).
+              assumption. assumption. assumption. eauto.
+            apply val_not_bottom with (e := e2) (W := W0) (G := Gamma); assumption.
      SSCase "EApp Fun".
        assert (step e1 (e_plug EC ae')).
        apply StepCxt with (E := EC) (ae := ae) (ae' := ae').
@@ -1119,13 +1120,6 @@ Proof.
       apply HTPrim with (t1 := t1); assumption. assumption.
   Case "Subtype".
    apply IHhas_type in H1. apply HTSub with (s := s); assumption.
- Grab Existential Variables.
- assumption.
- assumption.
- assumption.
- assumption.
- assumption.
- assumption.
 Qed.      
    
 Inductive is_error: expr -> Prop :=
@@ -1154,51 +1148,27 @@ Proof.
           try solve [exists (EErr w0); apply StepErr with (E := e_before_the_fall); assumption]
         ]. subst.
       SSCase "Hole". inversion H4. subst. right. right. split.
-        constructor.
-        exists w0.
-        split.
-          reflexivity.
-          apply typing_used_w with (G := empty)
-                                   (E := EHole)
-                                   (e := (EErr w0))
-                                   (T := t); assumption.
+        constructor. exists w0. split; eauto.
     SCase "EApp".
       inversion H3. inversion H5. subst.
       right. left. split.
         unfold not. intro. inversion H6. subst. inversion H4.
         destruct ae1; try solve [inversion H9].
         SSCase "Num".
-          destruct (Qeq_dec q 0);
-          admit. (* TODO(joe): now we know how to destruct correctly *)
-        SSCase "Lam".
-          exists (e_plug E (e_subst i ae2 ae1)).
-          apply StepCxt with (E := E)
-                             (ae := (EApp (ELam i t0 l ae1) ae2))
-                             (ae' := e_subst i ae2 ae1);
-                             try solve [assumption].
-          constructor. assumption. reflexivity.
+          destruct (Qeq_dec q 0); eauto.
+        SSCase "Lam". eauto.
     SCase "EPrim".
       inversion H3. inversion H5. subst.
       right. left. split.
         unfold not. intro. inversion H6. subst. inversion H4.
         destruct ae; try solve [inversion H8].
         SSCase "Num".
-          admit.
+          destruct (Qeq_dec q 0).
+          SSSCase "q == 0".
+            destruct c0; eauto.
+          SSSCase "q =/= 0".
+            destruct c0; eauto.
         SSCase "Lam".
-          destruct c0.
-          SSSCase "div".
-            exists (e_plug E (EErr div_lam)).
-            apply StepCxt with (E := E)
-              (ae := EPrim div (ELam i t0 l ae))
-              (ae' := EErr div_lam);
-              try solve [assumption].
-            constructor. assumption. constructor. reflexivity.
-          SSSCase "add".
-            exists (e_plug E (EErr add_lam)).
-            apply StepCxt with (E := E)
-              (ae := EPrim add (ELam i t0 l ae))
-              (ae' := EErr add_lam);
-              try solve [assumption].
-            constructor. assumption. constructor. reflexivity.
+          destruct c0; eauto.
 Qed.
 
