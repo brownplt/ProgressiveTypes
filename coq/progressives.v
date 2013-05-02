@@ -1153,22 +1153,12 @@ Proof.
       inversion H3. inversion H5. subst.
       right. left. split.
         unfold not. intro. inversion H6. subst. inversion H4.
-        destruct ae1; try solve [inversion H9].
-        SSCase "Num".
-          destruct (Qeq_dec q 0); eauto.
-        SSCase "Lam". eauto.
+        destruct ae1; try solve [inversion H9]; try (destruct (Qeq_dec q 0)); eauto.
     SCase "EPrim".
       inversion H3. inversion H5. subst.
       right. left. split.
         unfold not. intro. inversion H6. subst. inversion H4.
-        destruct ae; try solve [inversion H8].
-        SSCase "Num".
-          destruct (Qeq_dec q 0).
-          SSSCase "q == 0".
-            destruct c0; eauto.
-          SSSCase "q =/= 0".
-            destruct c0; eauto.
-        SSCase "Lam".
-          destruct c0; eauto.
+        destruct ae; try solve [inversion H8]; destruct c0; eauto.
+          destruct (Qeq_dec q 0); eauto.
 Qed.
 
