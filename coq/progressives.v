@@ -25,6 +25,15 @@ Proof.
   intros. destruct i.
   apply beq_nat_refl. Qed.
 
+Theorem beq_id_eq : forall i i',
+  beq_id i i' = true -> i = i'.
+Proof.
+  intros. unfold beq_id in H. destruct i; destruct i'.
+  f_equal.
+  apply beq_nat_eq. auto.
+Qed.
+
+  
 Inductive w : Type :=
   | div_0 : w
   | div_lam : w
@@ -209,18 +218,17 @@ Fixpoint e_plug (c: cxt) (e: expr) : expr :=
     | EPrimArg op c2 => EPrim op (e_plug c2 e)
   end
 .
-
-Definition Env := partial_map bool.
+Definition Env := partial_map typ.
 
 Inductive closed : Env -> expr -> Prop :=
-  | closed_var : forall env x,
-      env x = Some true ->
+  | closed_var : forall env x t,
+      env x = Some t ->
       closed env (EVar x)
   | closed_num : forall env n, closed env (ENum n)
   | closed_err : forall env w, closed env (EErr w)
   | closed_lam : forall env x W t e,
-      closed (extend env x true) e ->
-      closed env (ELam x W t e)
+      closed (extend env x t) e ->
+      closed env (ELam x t W e)
   | closed_app : forall env e1 e2,
       closed env e1 -> closed env e2 -> closed env (EApp e1 e2)
   | closed_prim : forall env c e,
@@ -956,11 +964,127 @@ Lemma double_extend_eq : forall G x x' (t t' : typ),
 Proof.
 Admitted.
 
+Lemma other_extend_eq1 : forall G x x' (t t' :typ),
+  beq_id x' x = false ->
+  G x = Some t ->
+  (extend G x' t') x = Some t.
+Proof.
+  intros.
+  unfold extend.
+  rewrite H. assumption.
+Qed.
+
+Lemma other_extend_eq2 : forall G x x' (t t' :typ),
+  beq_id x' x = false ->
+  (extend G x' t') x = Some t ->
+  G x = Some t.
+Proof.
+  intros.
+  unfold extend in H0.
+  rewrite H in H0. assumption.
+Qed.
+
 Lemma extend_commutative : forall G x x' (t t' : typ),
   beq_id x x' = false ->
   (extend (extend G x t) x' t') = (extend (extend G x' t') x t).
 Proof.
 Admitted.
+
+Lemma extend_then_get : forall G x (T T' : typ),
+  (extend G x T) x = Some T' ->
+  T = T'.
+Proof.
+  Admitted.
+
+Lemma contains_w_trans : forall w W1 W2,
+  bcontains_list_w W1 W2 = true ->
+  has_error w W1 = true ->
+  has_error w W2 = true.
+Proof.
+  intros.
+  generalize dependent W2.
+  induction W1.
+  intros.
+  inversion H0.
+  intros.
+  destruct W2.
+  inversion H.
+  destruct w0; destruct a; destruct w1; auto; simpl; auto; inversion H.
+Qed.
+
+Hint Resolve contains_w_trans.
+    
+
+Lemma weaken_W : forall W1 W2 G e t,
+  has_type W1 G e t ->
+  bcontains_list_w W1 W2 = true ->
+  has_type W2 G e t.
+Proof.
+  intros.
+  induction H; subst; try solve [constructor; assumption]; eauto.
+  Case "HTApp".
+    apply HTApp with (t1 := t1) (t2 := t2); auto.
+    clear H H1 IHhas_type1 IHhas_type2.
+    induction H2; subst; eauto.
+  Case "HTPrim".
+    apply HTPrim with (t1 := t1); eauto.
+    clear H IHhas_type.
+    induction H1; eauto.
+Qed.
+
+Definition map_contains G G' := 
+  forall (x : id) (T : typ),
+    G x = Some T -> G' x = Some T.
+
+Lemma map_empty_contained : forall G,
+  map_contains empty G.
+Proof.
+  intros.
+  unfold map_contains.
+  intros.
+  inversion H.
+Qed.
+
+Lemma map_extend_contained : forall G x t,
+  G x = None ->
+  map_contains G (extend G x t).
+Proof.
+  intros.
+  unfold map_contains.
+  intros.
+  remember (beq_id x x0) as xb.
+  destruct xb.
+  symmetry in Heqxb.
+  apply beq_id_eq in Heqxb. subst. rewrite H0 in H. inversion H.
+  symmetry in Heqxb.
+  apply other_extend_eq1. assumption. assumption.
+Qed.
+  
+
+Lemma weaken_G : forall W G G' v t,
+  closed G v ->
+  map_contains G G' ->
+  has_type W G v t ->
+  has_type W G' v t.
+Proof.
+  
+(*  intros.
+  induction H0; eauto.
+  inversion H.
+  inversion H3.
+  apply HTLam.
+  SearchAbout partial_map.
+assumption. *)
+Admitted.
+  
+  
+Lemma weaken_W_apply : forall W W' t t' t'',
+  apply_t t t' W t'' ->
+  bcontains_list_w W W' = true ->
+  apply_t t t' W' t''.
+Proof.
+  intros. induction H; subst; eauto.
+Qed.
 
 
 Lemma subst_type : forall e x v G T W1 W2 Tx,
@@ -972,11 +1096,14 @@ Lemma subst_type : forall e x v G T W1 W2 Tx,
   has_type W2 G (e_subst x v e) T.
 Proof.
   intros. generalize dependent T. generalize dependent W1. generalize dependent G. generalize dependent W2.
-  induction e. simpl.
+  induction e; intros.
     (* induction on H or something *)
-  Case "Num". admit.
+  Case "Num".
+    remember (ENum q) as e_num.
+    remember (extend G x Tx) as G1.
+    induction H; simpl; eauto.
   Case "Lam".
-    intros.
+    simpl.
     remember (ELam i t l e) as e_lam.
     remember (extend G x Tx) as G1.
     induction H; try solve [inversion Heqe_lam]. inversion Heqe_lam. subst.
@@ -994,15 +1121,47 @@ Proof.
       subst. apply HTSub with (s := s).
       apply IHhas_type; auto. assumption.
   Case "Var".
-    Admitted.
+    simpl.
+    remember (beq_id x i) as H_x.
+    destruct H_x.
+    SCase "actually substing".
+      remember (EVar i) as e_var.
+      remember (extend G x Tx) as g_ext.
+      induction H; eauto.
+        inversion Heqe_var. subst.
+        symmetry in HeqH_x.
+        apply beq_id_eq in HeqH_x. subst.
+        apply extend_then_get in H. subst.
+        apply weaken_W with (W1 := []).
+        apply weaken_G with (G := empty).
+        assumption.
+        apply map_empty_contained. assumption. simpl. destruct W2; auto.
+    SCase "not actually substing".
+      remember (EVar i) as e_var.
+      remember (extend G x Tx) as g_ext.
+      induction H; eauto.
+        apply HTVar. subst. apply other_extend_eq2 with (x' := x) (t' := Tx).
+        inversion Heqe_var. auto. auto.
+  Case "Err".
+    remember (EErr w0) as e_err.
+    induction H; simpl; eauto.
+  Case "EApp".
+    remember (EApp e1 e2) as e_app.
+    remember (extend G x Tx) as g_ext.
+    induction H; eauto.
+    apply HTApp with (t1 := t1) (t2 := t2).
+    fold e_subst. inversion Heqe_app. subst. apply IHe1 with (W1 := W0); auto.
+    fold e_subst. inversion Heqe_app. subst. apply IHe2 with (W1 := W0); auto.
+    apply weaken_W_apply with (W := W0); auto.
+  Case "EPrim".
+    admit.
+Qed.
+    
+    
+    
+      
  
 
-
-Lemma weaken_W : forall W1 W2 G e t,
-  has_type W1 G e t ->
-  bcontains_list_w W1 W2 ->
-  has_type W2 G e t.
-Proof.
 
 
 Hint Extern 4 =>
