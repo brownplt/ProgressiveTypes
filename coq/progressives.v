@@ -99,25 +99,26 @@ Fixpoint bcontains_list_w lw lw' :=
   end
 .
 
+Lemma beq_w_eq : forall w w', beq_w w w' = true -> w = w'.
+Proof.
+ intros. destruct w0; destruct w'; simpl in H; try (discriminate); auto.
+Qed.
+
+
 Lemma bcontains_list_trans: forall l1 l2 l3,
   bcontains_list_w l1 l2 = true -> 
   bcontains_list_w l2 l3 = true ->
   bcontains_list_w l1 l3 = true.
 Proof.
-Admitted.
-(*
   intros. generalize dependent l2. generalize dependent l3. induction l1; intros.
   destruct l3; reflexivity.
-  intros. simpl. destruct l2. inversion H.
-  inversion H.
-  destruct l3. inversion H0.
-  inversion H0. rewrite H2.
-  assert (bcontains_list_w l1 l3 = true). apply IHl1 with (l2 := l2).
-  destruct H2.
-*)  
+  simpl in *. destruct l2. inversion H.
+  apply andb_true_iff in H. break_ands.
+  apply beq_w_eq in H1. subst.
+  simpl in H0. destruct l3; auto. rewrite andb_true_iff in *. break_ands; split; eauto.
+Qed.
 
 Hint Resolve bcontains_list_trans.
-
 
 Fixpoint beq_typ t t' :=
   match t, t' with
@@ -949,14 +950,59 @@ Qed.
 
 Hint Resolve val_not_bottom.
 
-Lemma subst_type : forall e x v G T W1 W2 Tx,
-  has_type W1 (extend G x Tx) e T ->
-  aval v ->
-  bcontains_list_w W1 W2 = true ->
-  has_type W2 G v Tx ->
-  has_type W2 G (e_subst x v e) T.
+Lemma double_extend_eq : forall G x x' (t t' : typ),
+  beq_id x x' = true ->
+  (extend (extend G x t) x' t') = (extend G x' t').
 Proof.
 Admitted.
+
+Lemma extend_commutative : forall G x x' (t t' : typ),
+  beq_id x x' = false ->
+  (extend (extend G x t) x' t') = (extend (extend G x' t') x t).
+Proof.
+Admitted.
+
+
+Lemma subst_type : forall e x v G T W1 W2 Tx,
+  has_type W1 (extend G x Tx) e T ->
+  closed empty v ->
+  aval v ->
+  bcontains_list_w W1 W2 = true ->
+  has_type nil empty v Tx ->
+  has_type W2 G (e_subst x v e) T.
+Proof.
+  intros. generalize dependent T. generalize dependent W1. generalize dependent G. generalize dependent W2.
+  induction e. simpl.
+    (* induction on H or something *)
+  Case "Num". admit.
+  Case "Lam".
+    intros.
+    remember (ELam i t l e) as e_lam.
+    remember (extend G x Tx) as G1.
+    induction H; try solve [inversion Heqe_lam]. inversion Heqe_lam. subst.
+    SCase "Arrow". subst. simpl.
+      remember (beq_id x i) as H_x.
+      destruct H_x.
+      SSCase "x = i".
+        rewrite double_extend_eq in H.
+        apply HTLam. assumption. auto.
+      SSCase "x =/= i".
+        rewrite extend_commutative in H.
+        apply HTLam.
+        apply IHe with (W1 := l) (W2 := l). admit. assumption. auto.
+    SCase "Sub".
+      subst. apply HTSub with (s := s).
+      apply IHhas_type; auto. assumption.
+  Case "Var".
+    Admitted.
+ 
+
+
+Lemma weaken_W : forall W1 W2 G e t,
+  has_type W1 G e t ->
+  bcontains_list_w W1 W2 ->
+  has_type W2 G e t.
+Proof.
 
 
 Hint Extern 4 =>
