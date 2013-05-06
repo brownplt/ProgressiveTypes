@@ -1,4 +1,4 @@
-Require Export Arith.EqNat.
+(*Require Export Arith.EqNat.*)
 Require Export Arith.
 Require Export QArith.
 Require Export List.
@@ -958,11 +958,43 @@ Qed.
 
 Hint Resolve val_not_bottom.
 
+Definition all_same (G1 G2 : Env) :=
+  forall (x : id), G1 x = G2 x.
+
 Lemma double_extend_eq : forall G x x' (t t' : typ),
   beq_id x x' = true ->
-  (extend (extend G x t) x' t') = (extend G x' t').
+  all_same (extend (extend G x t) x' t') (extend G x' t').
+Proof.
+
+Admitted.
+
+Lemma double_extend_typ : forall W G x Tx x' Tx' e tres,
+  beq_id x x' = true ->
+  has_type W (extend (extend G x Tx) x' Tx') e tres ->
+  has_type W (extend G x' Tx') e tres.
 Proof.
 Admitted.
+(*  intros.
+  remember (extend (extend G x Tx) x' Tx') as g_ext.
+  induction H0; eauto.
+
+  Case "Var".
+    remember (beq_id x' x0) as x_eq.
+    destruct x_eq; apply beq_id_eq in H; subst;
+      apply HTVar;
+      unfold extend in *; rewrite <- Heqx_eq in *; assumption.
+  Case "Lam". 
+    remember (beq_id x' x0) as x_eq.
+    destruct x_eq. 
+    unfold extend in *. symmetry in Heqx_eq. apply beq_id_eq in Heqx_eq. subst.
+    apply HTLam. 
+
+ rewrite <- Heqx_eq in *.
+    apply HTLam.
+    clear Heqg_ext.
+    subst.
+
+generalize dependent e.  tres.*)
 
 Lemma other_extend_eq1 : forall G x x' (t t' :typ),
   beq_id x' x = false ->
@@ -1036,6 +1068,15 @@ Definition map_contains G G' :=
   forall (x : id) (T : typ),
     G x = Some T -> G' x = Some T.
 
+
+Lemma Double_extend_contains : forall G x Tx x' Tx',
+  beq_id x x' = true ->
+  map_contains (extend (extend G x Tx) x' Tx') (extend G x' Tx') /\
+    map_contains (extend G x' Tx') (extend (extend G x Tx) x' Tx').
+Proof.
+Admitted.
+
+
 Lemma map_empty_contained : forall G,
   map_contains empty G.
 Proof.
@@ -1067,14 +1108,13 @@ Lemma weaken_G : forall W G G' v t,
   has_type W G v t ->
   has_type W G' v t.
 Proof.
-  
-(*  intros.
-  induction H0; eauto.
+  intros.
+  induction H1; eauto.
   inversion H.
   inversion H3.
   apply HTLam.
   SearchAbout partial_map.
-assumption. *)
+assumption.
 Admitted.
   
   
