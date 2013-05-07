@@ -958,15 +958,38 @@ Qed.
 
 Hint Resolve val_not_bottom.
 
+Definition map_contains G G' := 
+  forall (x : id) (T : typ),
+    G x = Some T -> G' x = Some T.
+
 Definition all_same (G1 G2 : Env) :=
   forall (x : id), G1 x = G2 x.
 
-Lemma double_extend_eq : forall G x x' (t t' : typ),
+Lemma double_extend_contains : forall G x x' (t t' : typ),
   beq_id x x' = true ->
-  all_same (extend (extend G x t) x' t') (extend G x' t').
+  map_contains (extend (extend G x t) x' t') (extend G x' t').
 Proof.
+  intros. unfold map_contains.
+  intros. unfold extend in *.
+  remember (beq_id x' x0) as id.
+  destruct id. assumption.
+  apply beq_id_eq in H; subst.
+  symmetry in Heqid. rewrite Heqid in H0.
+  assumption.
+Qed.
 
-Admitted.
+Lemma commute_extend_contains : forall G x x' (t t' : typ),
+  beq_id x x' = false ->
+  map_contains (extend (extend G x t) x' t') (extend (extend G x' t') x t).
+Proof.
+  intros. unfold map_contains.
+  intros. unfold extend in *.
+  remember (beq_id x' x0) as id.
+  destruct id.
+  symmetry in Heqid. apply beq_id_eq in Heqid; subst.
+  rewrite H; assumption.
+  assumption.
+Qed.
 
 Lemma double_extend_typ : forall W G x Tx x' Tx' e tres,
   beq_id x x' = true ->
@@ -1064,11 +1087,6 @@ Proof.
     induction H1; eauto.
 Qed.
 
-Definition map_contains G G' := 
-  forall (x : id) (T : typ),
-    G x = Some T -> G' x = Some T.
-
-
 Lemma Double_extend_contains : forall G x Tx x' Tx',
   beq_id x x' = true ->
   map_contains (extend (extend G x Tx) x' Tx') (extend G x' Tx') /\
@@ -1100,23 +1118,30 @@ Proof.
   symmetry in Heqxb.
   apply other_extend_eq1. assumption. assumption.
 Qed.
-  
+
+Lemma map_contains_ext : forall G G' x t,
+  map_contains G G' -> 
+  map_contains (extend G x t) (extend G' x t).
+Proof.
+  intros. unfold map_contains in *.
+  unfold extend. intros.
+  remember (beq_id x x0) as id.
+  destruct id. assumption.
+  apply H; assumption.
+Qed.
 
 Lemma weaken_G : forall W G G' v t,
-  closed G v ->
+(*  closed G v -> *)
   map_contains G G' ->
   has_type W G v t ->
   has_type W G' v t.
 Proof.
-  intros.
-  induction H1; eauto.
-  inversion H.
-  inversion H3.
-  apply HTLam.
-  SearchAbout partial_map.
-assumption.
-Admitted.
-  
+  intros. generalize dependent G'.
+  induction H0; intros; eauto.
+  Case "Lam".
+    apply HTLam. apply IHhas_type. 
+    apply map_contains_ext. assumption.
+Qed.
   
 Lemma weaken_W_apply : forall W W' t t' t'',
   apply_t t t' W t'' ->
@@ -1126,6 +1151,13 @@ Proof.
   intros. induction H; subst; eauto.
 Qed.
 
+Lemma weaken_W_delta : forall W W' c t tres,
+  delta_t c t W tres ->
+  bcontains_list_w W W' = true ->
+  delta_t c t W' tres.
+Proof.
+  intros. induction H; subst; eauto.
+Qed.
 
 Lemma subst_type : forall e x v G T W1 W2 Tx,
   has_type W1 (extend G x Tx) e T ->
@@ -1151,12 +1183,17 @@ Proof.
       remember (beq_id x i) as H_x.
       destruct H_x.
       SSCase "x = i".
-        rewrite double_extend_eq in H.
-        apply HTLam. assumption. auto.
-      SSCase "x =/= i".
-        rewrite extend_commutative in H.
         apply HTLam.
-        apply IHe with (W1 := l) (W2 := l). admit. assumption. auto.
+        apply weaken_G with (G := (extend (extend G x Tx) i t)).
+        apply double_extend_contains; auto.
+        assumption.
+      SSCase "x =/= i".
+        apply HTLam.
+        apply IHe with (W1 := l) (W2 := l). 
+        admit. 
+        apply weaken_G with (G := (extend (extend G x Tx) i t)).
+        apply commute_extend_contains; auto.
+        assumption.
     SCase "Sub".
       subst. apply HTSub with (s := s).
       apply IHhas_type; auto. assumption.
@@ -1174,7 +1211,6 @@ Proof.
         apply extend_then_get in H. subst.
         apply weaken_W with (W1 := []).
         apply weaken_G with (G := empty).
-        assumption.
         apply map_empty_contained. assumption. simpl. destruct W2; auto.
     SCase "not actually substing".
       remember (EVar i) as e_var.
@@ -1194,7 +1230,12 @@ Proof.
     fold e_subst. inversion Heqe_app. subst. apply IHe2 with (W1 := W0); auto.
     apply weaken_W_apply with (W := W0); auto.
   Case "EPrim".
-    admit.
+    remember (EPrim c0 e) as e_prim.
+    remember (extend G x Tx) as g_ext.
+    induction H; eauto.
+    apply HTPrim with (t1 := t1).
+    fold e_subst. inversion Heqe_prim. subst. apply IHe with (W1 := W0); auto.
+    apply weaken_W_delta with (W := W0); auto.
 Qed.
     
     
