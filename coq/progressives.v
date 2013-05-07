@@ -991,34 +991,6 @@ Proof.
   assumption.
 Qed.
 
-Lemma double_extend_typ : forall W G x Tx x' Tx' e tres,
-  beq_id x x' = true ->
-  has_type W (extend (extend G x Tx) x' Tx') e tres ->
-  has_type W (extend G x' Tx') e tres.
-Proof.
-Admitted.
-(*  intros.
-  remember (extend (extend G x Tx) x' Tx') as g_ext.
-  induction H0; eauto.
-
-  Case "Var".
-    remember (beq_id x' x0) as x_eq.
-    destruct x_eq; apply beq_id_eq in H; subst;
-      apply HTVar;
-      unfold extend in *; rewrite <- Heqx_eq in *; assumption.
-  Case "Lam". 
-    remember (beq_id x' x0) as x_eq.
-    destruct x_eq. 
-    unfold extend in *. symmetry in Heqx_eq. apply beq_id_eq in Heqx_eq. subst.
-    apply HTLam. 
-
- rewrite <- Heqx_eq in *.
-    apply HTLam.
-    clear Heqg_ext.
-    subst.
-
-generalize dependent e.  tres.*)
-
 Lemma other_extend_eq1 : forall G x x' (t t' :typ),
   beq_id x' x = false ->
   G x = Some t ->
@@ -1039,17 +1011,17 @@ Proof.
   rewrite H in H0. assumption.
 Qed.
 
-Lemma extend_commutative : forall G x x' (t t' : typ),
-  beq_id x x' = false ->
-  (extend (extend G x t) x' t') = (extend (extend G x' t') x t).
-Proof.
-Admitted.
-
 Lemma extend_then_get : forall G x (T T' : typ),
   (extend G x T) x = Some T' ->
   T = T'.
 Proof.
-  Admitted.
+  intros. unfold extend in H.
+  remember (beq_id x x) as id.
+  destruct id; simpl in H.
+  inversion H; auto.
+  rewrite <- beq_id_refl in Heqid.
+  inversion Heqid.
+Qed.
 
 Lemma contains_w_trans : forall w W1 W2,
   bcontains_list_w W1 W2 = true ->
@@ -1086,14 +1058,6 @@ Proof.
     clear H IHhas_type.
     induction H1; eauto.
 Qed.
-
-Lemma Double_extend_contains : forall G x Tx x' Tx',
-  beq_id x x' = true ->
-  map_contains (extend (extend G x Tx) x' Tx') (extend G x' Tx') /\
-    map_contains (extend G x' Tx') (extend (extend G x Tx) x' Tx').
-Proof.
-Admitted.
-
 
 Lemma map_empty_contained : forall G,
   map_contains empty G.
@@ -1161,7 +1125,6 @@ Qed.
 
 Lemma subst_type : forall e x v G T W1 W2 Tx,
   has_type W1 (extend G x Tx) e T ->
-  closed empty v ->
   aval v ->
   bcontains_list_w W1 W2 = true ->
   has_type nil empty v Tx ->
@@ -1237,13 +1200,16 @@ Proof.
     fold e_subst. inversion Heqe_prim. subst. apply IHe with (W1 := W0); auto.
     apply weaken_W_delta with (W := W0); auto.
 Qed.
-    
-    
-    
-      
- 
 
+Lemma values_no_errors : forall W G v t,
+  aval v ->
+  has_type W G v t ->
+  has_type [] G v t.
+Proof.
+  intros; induction H0; subst; inversion H; subst; eauto.
+Qed.
 
+Hint Resolve values_no_errors.
 
 Hint Extern 4 =>
   match goal with
@@ -1270,13 +1236,14 @@ Theorem preservation : forall e e' W T,
 Proof.
   intros.
   generalize dependent e'.
+  remember (empty) as mt.
   induction H; intros;
     try solve [
       inversion H0; try solve [
         inversion H1 |
         subst; inversion H1; subst; inversion H3 |
         apply HTErr; inversion H1; subst; auto
-      ]].
+      ]]; subst.
   Case "HTApp".
    inversion H2; subst.
     SCase "Decomp".
@@ -1284,7 +1251,7 @@ Proof.
      SSCase "Active".
         inversion H5; subst.
         SSSCase "EApp".
-          apply subst_type with (W1 := ws) (Tx := typ0).
+          apply subst_type with (W1 := ws) (Tx := typ0). 
           
           remember (ELam x typ0 ws eb) as elam.
           inversion H; subst; try solve [inversion H11 | discriminate].
@@ -1292,7 +1259,7 @@ Proof.
               assert (subtype (TArrow targ W2 tres) (TArrow targ W2 tres)).
               apply SRefl.
               assert (~ (subtype t2 TBot)).
-              apply val_not_bottom with (e := e2) (W := W0) (G := Gamma); assumption.
+              apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
               assert (foo := apply_subtype targ W2 tres (TArrow targ W2 tres) t2 W0 t H8 H1 H9).
               
               apply HTSub with (s := tres); break_ands.
@@ -1302,7 +1269,7 @@ Proof.
               elim H_new; intros t' H_ands; eauto.
               break_ands. apply HTSub with (s := t'). assumption. 
               assert (~ (subtype t2 TBot)).
-              apply val_not_bottom with (e := e2) (W := W0) (G := Gamma); assumption.
+              apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
               eauto.
 
           assumption.
@@ -1310,13 +1277,15 @@ Proof.
           assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1)).
           elim H_new; intros. break_ands.
           assert (~ (subtype t2 TBot)).
-          apply val_not_bottom with (e := e2) (W := W0) (G := Gamma); assumption.
+          apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
           eauto.
 
+          
+
           assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1)).
-          elim H_new; intros. break_ands.
+          elim H_new; intros. break_ands. clear H_new.
           assert (~ (subtype t2 TBot)).
-          apply val_not_bottom with (e := e2) (W := W0) (G := Gamma); assumption.
+          apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
           eauto.
 
         SSSCase "AppN".
@@ -1346,22 +1315,22 @@ Proof.
             SSSSCase "TNum <: t0".
               apply invert_0 with (n := n) (t1 := s) (W := W0) (G := Gamma).
               assumption. assumption. assumption. eauto.
-            apply val_not_bottom with (e := e2) (W := W0) (G := Gamma); assumption.
+            apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
      SSCase "EApp Fun".
        assert (step e1 (e_plug EC ae')).
        apply StepCxt with (E := EC) (ae := ae) (ae' := ae').
        assumption. assumption. assumption. reflexivity.
-       apply IHhas_type1 in H6.
+       apply IHhas_type1 in H6; auto.
        apply HTApp with (t1 := t1) (t2 := t2); assumption.
      SSCase "EApp Arg".
        assert (step e2 (e_plug EC ae')).
        apply StepCxt with (E := EC) (ae := ae) (ae' := ae').
        assumption. assumption. assumption. reflexivity.
-       apply IHhas_type2 in H6.
+       apply IHhas_type2 in H6; auto.
        apply HTApp with (t1 := t1) (t2 := t2); assumption.
    SCase "Error".
       apply HTErr.
-      apply typing_used_w with (G := Gamma)
+      apply typing_used_w with (G := empty)
                                (E := E)
                                (e := EApp e1 e2)
                                (T := t).
@@ -1467,18 +1436,18 @@ Proof.
                          (ae := ae)
                          (ae' := ae').
       assumption. assumption. assumption. reflexivity.
-      apply IHhas_type in H5.
+      apply IHhas_type in H5; auto.
       apply HTPrim with (t1 := t1). assumption. assumption.
     SSCase "Error".
       apply HTErr.
-      apply typing_used_w with (G := Gamma)
+      apply typing_used_w with (G := empty)
                                (E := E)
                                (e := EPrim c0 e)
                                (T := t).
       apply HTPrim with (t1 := t1); assumption. assumption.
   Case "Subtype".
-   apply IHhas_type in H1. apply HTSub with (s := s); assumption.
-Qed.      
+   apply IHhas_type in H1; auto. apply HTSub with (s := s); assumption.
+Qed.
    
 Inductive is_error: expr -> Prop :=
   | err : forall w, is_error (EErr w).
