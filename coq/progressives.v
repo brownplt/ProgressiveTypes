@@ -108,9 +108,10 @@ Fixpoint bcontains_list_w lw lw' :=
   end
 .
 
-Lemma beq_w_eq : forall w w', beq_w w w' = true -> w = w'.
+Lemma beq_w_eq : forall w w', beq_w w w' = true <-> w = w'.
 Proof.
- intros. destruct w0; destruct w'; simpl in H; try (discriminate); auto.
+ intros. 
+ split; destruct w0; destruct w'; try (simpl in H); try (discriminate); auto.
 Qed.
 
 
@@ -127,7 +128,17 @@ Proof.
   simpl in H0. destruct l3; auto. rewrite andb_true_iff in *. break_ands; split; eauto.
 Qed.
 
+Lemma bcontains_list_refl: forall l,
+  bcontains_list_w l l = true.
+Proof.
+  induction l; auto.
+  simpl. rewrite andb_true_iff. split; auto.
+  destruct a; auto.
+Qed.
+
+Hint Resolve bcontains_list_refl.
 Hint Resolve bcontains_list_trans.
+Hint Rewrite beq_w_eq.
 
 Fixpoint beq_typ t t' :=
   match t, t' with
@@ -1152,8 +1163,7 @@ Proof.
         assumption.
       SSCase "x =/= i".
         apply HTLam.
-        apply IHe with (W1 := l) (W2 := l). 
-        admit. 
+        apply IHe with (W1 := l) (W2 := l); auto.
         apply weaken_G with (G := (extend (extend G x Tx) i t)).
         apply commute_extend_contains; auto.
         assumption.
@@ -1489,3 +1499,41 @@ Proof.
           destruct (Qeq_dec q 0); eauto.
 Qed.
 
+Hint Constructors aval.
+
+Lemma aval_dec : forall e,
+  {aval e} + {~ aval e}.
+Proof.
+  destruct e; solve [left; auto | right; intro H; inversion H].
+Qed.
+
+Hint Constructors is_error.
+Lemma is_error_dec : forall e, {is_error e} + {~ is_error e}.
+Proof.
+  destruct e; solve [left; auto | right; intro H; inversion H].
+Qed.
+
+Lemma has_type_closed : forall e W G t,
+  has_type W G e t ->
+  closed G e.
+Proof.
+  induction e; intros; auto; 
+    match goal with
+      | [ H : has_type _ _ ?e _ |- _ ] => let e' := fresh "e'" in
+        remember e as e'; induction H; inversion Heqe'; subst
+    end; try solve [apply IHhas_type; eauto | econstructor; eauto].
+Qed.
+
+Theorem soudness : forall W e e' t, 
+  has_type W empty e t ->
+  stepmany e e' ->
+  aval e' \/
+  (~ (is_error e') /\ exists e'', step e' e'') \/
+  (is_error e' /\ exists w, (e' = EErr w) /\ has_error w W = true).
+Proof.
+  intros.
+  induction H0.
+  Case "Refl". eapply progress; eauto.
+  eapply has_type_closed. exact H.
+  Case "Step". apply IHrefl_step_closure. apply preservation with x; auto.
+Qed.
