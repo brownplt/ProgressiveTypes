@@ -1261,7 +1261,7 @@ Proof.
      SSCase "Active".
         inversion H5; subst.
         SSSCase "EApp".
-          apply subst_type with (W1 := ws) (Tx := typ0). 
+          apply subst_type with (W1 := ws) (Tx := typ0); auto. 
           
           remember (ELam x typ0 ws eb) as elam.
           inversion H; subst; try solve [inversion H11 | discriminate].
@@ -1272,8 +1272,8 @@ Proof.
               apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
               assert (foo := apply_subtype targ W2 tres (TArrow targ W2 tres) t2 W0 t H8 H1 H9).
               
-              apply HTSub with (s := tres); break_ands.
-              inversion H11. subst. assumption. assumption.
+              apply HTSub with (s := tres); break_ands; auto.
+              inversion H11; subst. assumption.
             SSSSCase "HTSub".
               assert (H_new := invert_lam _ _ _ _ _ _ _ _ H7 H8).
               elim H_new; intros t' H_ands; eauto.
@@ -1282,15 +1282,11 @@ Proof.
               apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
               eauto.
 
-          assumption.
-
           assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1)).
           elim H_new; intros. break_ands.
           assert (~ (subtype t2 TBot)).
           apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
           eauto.
-
-          
 
           assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1)).
           elim H_new; intros. break_ands. clear H_new.
@@ -1309,8 +1305,7 @@ Proof.
             SSSSCase "Zero". contradict H11. assumption.
             SSSSCase "Numbers are numbers". apply SRefl.
             SSSSCase "TNum <: t0".
-              apply invert_num with (n := n) (t1 := s) (W := W0) (G := Gamma).
-              assumption. assumption. assumption.
+              apply invert_num with (n := n) (t1 := s) (W := W0) (G := Gamma); eauto.
             assumption. eauto.
         SSSCase "App0".
           apply HTErr.
@@ -1323,19 +1318,17 @@ Proof.
             SSSSCase "Zeros are zeros". apply SRefl.
             SSSSCase "Number". contradict H. assumption.
             SSSSCase "TNum <: t0".
-              apply invert_0 with (n := n) (t1 := s) (W := W0) (G := Gamma).
-              assumption. assumption. assumption. eauto.
+              apply invert_0 with (n := n) (t1 := s) (W := W0) (G := Gamma); eauto. 
+            eauto.
             apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
      SSCase "EApp Fun".
        assert (step e1 (e_plug EC ae')).
-       apply StepCxt with (E := EC) (ae := ae) (ae' := ae').
-       assumption. assumption. assumption. reflexivity.
+       apply StepCxt with (E := EC) (ae := ae) (ae' := ae'); auto.
        apply IHhas_type1 in H6; auto.
        apply HTApp with (t1 := t1) (t2 := t2); assumption.
      SSCase "EApp Arg".
        assert (step e2 (e_plug EC ae')).
-       apply StepCxt with (E := EC) (ae := ae) (ae' := ae').
-       assumption. assumption. assumption. reflexivity.
+       apply StepCxt with (E := EC) (ae := ae) (ae' := ae'); auto.
        apply IHhas_type2 in H6; auto.
        apply HTApp with (t1 := t1) (t2 := t2); assumption.
    SCase "Error".
@@ -1444,17 +1437,16 @@ Proof.
       assert (step e (e_plug EC ae')).
       apply StepCxt with (E := EC)
                          (ae := ae)
-                         (ae' := ae').
-      assumption. assumption. assumption. reflexivity.
+                         (ae' := ae'); auto.
       apply IHhas_type in H5; auto.
-      apply HTPrim with (t1 := t1). assumption. assumption.
+      apply HTPrim with (t1 := t1); auto.
     SSCase "Error".
       apply HTErr.
       apply typing_used_w with (G := empty)
                                (E := E)
                                (e := EPrim c0 e)
-                               (T := t).
-      apply HTPrim with (t1 := t1); assumption. assumption.
+                               (T := t); auto.
+      apply HTPrim with (t1 := t1); assumption.
   Case "Subtype".
    apply IHhas_type in H1; auto. apply HTSub with (s := s); assumption.
 Qed.
@@ -1462,56 +1454,8 @@ Qed.
 Inductive is_error: expr -> Prop :=
   | err : forall w, is_error (EErr w).
    
-Lemma progress : forall W e t,
-  closed empty e ->
-  has_type W empty e t ->
-  aval e \/
-  (~ (is_error e) /\ exists e', step e e') \/
-  (is_error e /\ exists w, (e = EErr w) /\ has_error w W = true).
-Proof.
-  intros.
-  assert ((exists E ae, HoleFiller ae /\ EDecomp e E ae) \/ aval e).
-  apply decomp_expr. assumption.
-  inversion H1; try solve [left; assumption].
-  Case "Decomp".
-    elim H2. intros E H2'. elim H2'. intros ae H2''. break_ands.
-    destruct ae; try solve [inversion H3; inversion H5].
-    SCase "EErr".
-      remember E as e_before_the_fall.
-      destruct E;
-        try solve [
-          right; left; split;
-          try solve [unfold not; intro; inversion H5; subst; inversion H4];
-          try solve [exists (EErr w0); apply StepErr with (E := e_before_the_fall); assumption]
-        ]. subst.
-      SSCase "Hole". inversion H4. subst. right. right. split.
-        constructor. exists w0. split; eauto.
-    SCase "EApp".
-      inversion H3. inversion H5. subst.
-      right. left. split.
-        unfold not. intro. inversion H6. subst. inversion H4.
-        destruct ae1; try solve [inversion H9]; try (destruct (Qeq_dec q 0)); eauto.
-    SCase "EPrim".
-      inversion H3. inversion H5. subst.
-      right. left. split.
-        unfold not. intro. inversion H6. subst. inversion H4.
-        destruct ae; try solve [inversion H8]; destruct c0; eauto.
-          destruct (Qeq_dec q 0); eauto.
-Qed.
 
 Hint Constructors aval.
-
-Lemma aval_dec : forall e,
-  {aval e} + {~ aval e}.
-Proof.
-  destruct e; solve [left; auto | right; intro H; inversion H].
-Qed.
-
-Hint Constructors is_error.
-Lemma is_error_dec : forall e, {is_error e} + {~ is_error e}.
-Proof.
-  destruct e; solve [left; auto | right; intro H; inversion H].
-Qed.
 
 Lemma has_type_closed : forall e W G t,
   has_type W G e t ->
@@ -1522,6 +1466,44 @@ Proof.
       | [ H : has_type _ _ ?e _ |- _ ] => let e' := fresh "e'" in
         remember e as e'; induction H; inversion Heqe'; subst
     end; try solve [apply IHhas_type; eauto | econstructor; eauto].
+Qed.
+
+Hint Resolve has_type_closed.
+
+Lemma progress : forall W e t,
+  has_type W empty e t ->
+  aval e \/
+  (~ (is_error e) /\ exists e', step e e') \/
+  (is_error e /\ exists w, (e = EErr w) /\ has_error w W = true).
+Proof.
+  intros.
+  assert ((exists E ae, HoleFiller ae /\ EDecomp e E ae) \/ aval e).
+  apply decomp_expr. eauto.
+  inversion H0; try solve [left; assumption].
+  Case "Decomp".
+    elim H1. intros E H2'. elim H2'. intros ae H2''. break_ands.
+    destruct ae; try solve [inversion H2; inversion H4].
+    SCase "EErr".
+      remember E as e_before_the_fall.
+      destruct E;
+        try solve [
+          right; left; split;
+          try solve [unfold not; intro; inversion H4; subst; inversion H3 |
+                     exists (EErr w0); apply StepErr with (E := e_before_the_fall); assumption]
+        ].
+      SSCase "Hole". subst. inversion H3. subst. right. right. split.
+        constructor. exists w0. split; eauto.
+    SCase "EApp".
+      inversion H2. inversion H4. subst.
+      right. left. split.
+        unfold not. intro. inversion H5. subst. inversion H3.
+        destruct ae1; try solve [inversion H8]; try (destruct (Qeq_dec q 0)); eauto.
+    SCase "EPrim".
+      inversion H2. inversion H4. subst.
+      right. left. split.
+        unfold not. intro. inversion H5. subst. inversion H3.
+        destruct ae; try solve [inversion H7]; destruct c0; eauto.
+          destruct (Qeq_dec q 0); eauto.
 Qed.
 
 Theorem soudness : forall W e e' t, 
