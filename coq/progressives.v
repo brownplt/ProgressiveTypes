@@ -9,18 +9,6 @@ Ltac break_ands :=
            [ H : _ /\ _ |- _ ] => inversion H; clear H
          end.
 
-(*Ltac break_ands :=
-  repeat match goal with
-           [ H : _ /\ _ |- _ ] => inversion H; clear H
-         end.
-
-              assert (H_new := invert_lam _ _ _ _ _ _ _ _ H7 H8).
-              elim H_new; intros t' H_ands; eauto.
-              break_ands. apply HTSub with (s := t'). assumption. 
-              assert (~ (subtype t2 TBot)).
-              apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
-              eauto.*)
-
 Hint Extern 2 =>
   match goal with
     [ H : _ /\ _ |- _ ] => inversion H; clear H
