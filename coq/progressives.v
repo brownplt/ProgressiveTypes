@@ -789,6 +789,12 @@ Proof.
     end; try (discriminate); try (inversion H5); subst; eauto.
 Qed.
 
+Hint Resolve delta_inv_div_0.
+Hint Resolve delta_inv_div_lam. 
+Hint Resolve delta_inv_add_lam.
+Hint Resolve app_inv_0.
+Hint Resolve app_inv_n.
+
 Fixpoint type_size t : nat :=
   match t with
     | TBot => 1%nat
@@ -1339,9 +1345,9 @@ Proof.
                                (T := t).
       apply HTApp with (t1 := t1) (t2 := t2); assumption. assumption.
   Case "HTPrim".
-  inversion H1; subst.
+  inversion H1; subst; eauto.
     SCase "Decomp".
-    inversion H2; subst.
+    inversion H2; subst; simpl in *; eauto.
     SSCase "Active". inversion H4. subst.
     inversion H3. subst.
     inversion H10; subst. 
@@ -1427,26 +1433,7 @@ Proof.
         inversion H; subst.
         inversion H0. subst. simpl. apply HTErr. assumption.
         SSSSCase "Num : s <= t". simpl in *.
-          induction H6; subst; try solve [inversion H10].
-          SSSSSCase "HTLam". apply HTErr.
-            apply delta_inv_add_lam with (s := targ) (W' := W2) (u := tres) (t1 := t1) (t := t); assumption.
-          SSSSSCase "HTSub". apply IHhas_type0; try solve [assumption].
-            apply subtype_transitive with (t := t0); assumption.
-    SSCase "NonActive".
-      simpl in *.
-      assert (step e (e_plug EC ae')).
-      apply StepCxt with (E := EC)
-                         (ae := ae)
-                         (ae' := ae'); auto.
-      apply IHhas_type in H5; auto.
-      apply HTPrim with (t1 := t1); auto.
-    SSCase "Error".
-      apply HTErr.
-      apply typing_used_w with (G := empty)
-                               (E := E)
-                               (e := EPrim c0 e)
-                               (T := t); auto.
-      apply HTPrim with (t1 := t1); assumption.
+          induction H6; subst; try solve [inversion H10]; eauto.
   Case "Subtype".
    apply IHhas_type in H1; auto. apply HTSub with (s := s); assumption.
 Qed.
@@ -1516,6 +1503,5 @@ Proof.
   intros.
   induction H0.
   Case "Refl". eapply progress; eauto.
-  eapply has_type_closed. exact H.
   Case "Step". apply IHrefl_step_closure. apply preservation with x; auto.
 Qed.
