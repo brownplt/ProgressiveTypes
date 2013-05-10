@@ -9,6 +9,18 @@ Ltac break_ands :=
            [ H : _ /\ _ |- _ ] => inversion H; clear H
          end.
 
+(*Ltac break_ands :=
+  repeat match goal with
+           [ H : _ /\ _ |- _ ] => inversion H; clear H
+         end.
+
+              assert (H_new := invert_lam _ _ _ _ _ _ _ _ H7 H8).
+              elim H_new; intros t' H_ands; eauto.
+              break_ands. apply HTSub with (s := t'). assumption. 
+              assert (~ (subtype t2 TBot)).
+              apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
+              eauto.*)
+
 Hint Extern 2 =>
   match goal with
     [ H : _ /\ _ |- _ ] => inversion H; clear H
@@ -939,6 +951,44 @@ Proof.
   induction H; inversion Heqelam; subst; eauto.
 Qed.
 
+Lemma invert_lam_arrow : forall x t w e W G t1 t2,
+  has_type W G (ELam x t w e) t1 ->
+  subtype t1 t2 ->
+  exists tres ,
+    has_type W G (ELam x t w e) (TArrow t w tres).
+Proof.
+  intros.
+  assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1)).
+  elim H_new. intros. exists x0. break_ands. assumption.
+Qed.
+  
+
+Lemma invert_lam_res : forall x t w e W G t1 t2,
+  has_type W G (ELam x t w e) t1 ->
+  subtype t1 t2 ->
+  exists tres ,
+     has_type w (extend G x t) e tres.
+ Proof.
+  intros.
+  assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1)).
+  elim H_new. intros. exists x0. break_ands. assumption.
+Qed.
+
+Lemma invert_lam_sub : forall x t w e W G t1 t2,
+  has_type W G (ELam x t w e) t1 ->
+  subtype t1 t2 ->
+  exists tres ,
+    subtype (TArrow t w tres) t2.
+Proof.
+  intros.
+  assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1)).
+  elim H_new. intros. exists x0. break_ands. eauto.
+Qed.
+
+Hint Resolve invert_lam_arrow.
+Hint Resolve invert_lam_res.
+Hint Resolve invert_lam_sub.
+
 Lemma invert_num : forall n t1 t2 W G,
   ~ (n == 0) ->
   has_type W G (ENum n) t1 ->
@@ -1012,6 +1062,9 @@ Proof.
   assumption.
 Qed.
 
+Hint Resolve double_extend_contains.
+Hint Resolve commute_extend_contains.
+
 Lemma other_extend_eq1 : forall G x x' (t t' :typ),
   beq_id x' x = false ->
   G x = Some t ->
@@ -1043,6 +1096,10 @@ Proof.
   rewrite <- beq_id_refl in Heqid.
   inversion Heqid.
 Qed.
+
+Hint Resolve other_extend_eq1.
+Hint Resolve other_extend_eq2.
+Hint Resolve extend_then_get.
 
 Lemma contains_w_trans : forall w W1 W2,
   bcontains_list_w W1 W2 = true ->
@@ -1115,17 +1172,17 @@ Proof.
   apply H; assumption.
 Qed.
 
+Hint Resolve map_empty_contained.
+Hint Resolve map_extend_contained.
+Hint Resolve map_contains_ext.
+
 Lemma weaken_G : forall W G G' v t,
-(*  closed G v -> *)
   map_contains G G' ->
   has_type W G v t ->
   has_type W G' v t.
 Proof.
   intros. generalize dependent G'.
   induction H0; intros; eauto.
-  Case "Lam".
-    apply HTLam. apply IHhas_type. 
-    apply map_contains_ext. assumption.
 Qed.
   
 Lemma weaken_W_apply : forall W W' t t' t'',
@@ -1144,6 +1201,11 @@ Proof.
   intros. induction H; subst; eauto.
 Qed.
 
+Hint Resolve weaken_W.
+Hint Resolve weaken_G.
+Hint Resolve weaken_W_apply.
+Hint Resolve weaken_W_delta.
+
 Lemma subst_type : forall e x v G T W1 W2 Tx,
   has_type W1 (extend G x Tx) e T ->
   aval v ->
@@ -1151,9 +1213,9 @@ Lemma subst_type : forall e x v G T W1 W2 Tx,
   has_type nil empty v Tx ->
   has_type W2 G (e_subst x v e) T.
 Proof.
-  intros. generalize dependent T. generalize dependent W1. generalize dependent G. generalize dependent W2.
+  intros. 
+  generalize dependent T. generalize dependent W1. generalize dependent G. generalize dependent W2.
   induction e; intros.
-    (* induction on H or something *)
   Case "Num".
     remember (ENum q) as e_num.
     remember (extend G x Tx) as G1.
@@ -1162,24 +1224,15 @@ Proof.
     simpl.
     remember (ELam i t l e) as e_lam.
     remember (extend G x Tx) as G1.
-    induction H; try solve [inversion Heqe_lam]. inversion Heqe_lam. subst.
+    induction H; try solve [inversion Heqe_lam]; subst; eauto. inversion Heqe_lam; subst.
     SCase "Arrow". subst. simpl.
       remember (beq_id x i) as H_x.
-      destruct H_x.
+      destruct H_x; eauto.
       SSCase "x = i".
         apply HTLam.
         apply weaken_G with (G := (extend (extend G x Tx) i t)).
         apply double_extend_contains; auto.
         assumption.
-      SSCase "x =/= i".
-        apply HTLam.
-        apply IHe with (W1 := l) (W2 := l); auto.
-        apply weaken_G with (G := (extend (extend G x Tx) i t)).
-        apply commute_extend_contains; auto.
-        assumption.
-    SCase "Sub".
-      subst. apply HTSub with (s := s).
-      apply IHhas_type; auto. assumption.
   Case "Var".
     simpl.
     remember (beq_id x i) as H_x.
@@ -1293,7 +1346,7 @@ Proof.
               eauto.
 
           assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1)).
-          elim H_new; intros. break_ands.
+          elim H_new; intros. break_ands. clear H_new.
           assert (~ (subtype t2 TBot)).
           apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
           eauto.
