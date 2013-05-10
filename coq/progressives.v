@@ -1312,58 +1312,31 @@ Proof.
      SSCase "Active".
         inversion H5; subst; eauto.
         SSSCase "EApp".
-          apply subst_type with (W1 := ws) (Tx := typ0); auto. 
-          
-          remember (ELam x typ0 ws eb) as elam.
-          inversion H; subst; try solve [inversion H11 | discriminate].
-            SSSSCase "HTLam".
-              assert (subtype (TArrow targ W2 tres) (TArrow targ W2 tres)).
-              apply SRefl.
-              assert (~ (subtype t2 TBot)).
-              apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
-              assert (foo := apply_subtype targ W2 tres (TArrow targ W2 tres) t2 W0 t H8 H1 H9).
-              
-              apply HTSub with (s := tres); break_ands; auto.
-              inversion H11; subst. assumption.
-            SSSSCase "HTSub".
-              assert (H_new := invert_lam _ _ _ _ _ _ _ _ H7 H8).
-              elim H_new; intros t' H_ands; eauto.
-              break_ands. apply HTSub with (s := t'). assumption. 
-              assert (~ (subtype t2 TBot)).
-              apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
-              eauto.
-
-          assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1)).
-          elim H_new; intros. break_ands. clear H_new.
-          assert (~ (subtype t2 TBot)).
-          apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
-          eauto.
-
-          assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1)).
-          elim H_new; intros. break_ands. clear H_new.
-          assert (~ (subtype t2 TBot)).
-          apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption.
-          eauto.
-
+          apply subst_type with (W1 := ws) (Tx := typ0); auto; try solve [
+            assert (H_new := invert_lam _ _ _ _ _ _ _ t1 H (SRefl t1));
+              elim H_new; intros; break_ands; clear H_new;
+                assert (~ (subtype t2 TBot)) by
+                  (apply val_not_bottom with (e := e2) (W := W0) (G := empty); assumption);
+                  eauto
+          ].
   Case "HTPrim".
   inversion H1; subst; eauto.
     SCase "Decomp".
     inversion H2; subst; simpl in *; eauto.
     SSCase "Active". 
       inversion H4. subst.
-      inversion H3. subst.
-      inversion H10; subst; eauto. 
+      inversion H10; subst; auto; eauto. 
       SSSCase "DivN".
         inversion H; subst.
         SSSSCase "Zero : TNum". contradiction.
         SSSSCase "Num : TNum".
           inversion H0; subst; eauto.
-          SSSSCase "Num : s <= t". simpl in *.
-            induction H9; subst; try solve [inversion H10]; eauto.
-            SSSSSCase "Zero is not non-zero". inversion H10. contradiction.
-            SSSSSCase "Num". apply HTSub with (s := TNum); auto.
-              SSSSSSCase "delta/subtyping commute".
-                apply delta_subtype with (t1 := TNum) (t2 := t1) (c := div) (W := W0); auto.
+        SSSSCase "Num : s <= t". simpl in *.
+          induction H7; subst; try solve [inversion H10]; eauto. 
+          SSSSSCase "Zero is not non-zero". inversion H10. contradiction. 
+          SSSSSCase "Num". apply HTSub with (s := TNum); auto.
+            SSSSSSCase "delta/subtyping commute".
+              apply delta_subtype with (t1 := TNum) (t2 := t1) (c := div) (W := W0); auto.
       SSSCase "DivLam".
         inversion H; subst; eauto.
         SSSSCase "Num : s <= t". simpl in *.
@@ -1374,30 +1347,29 @@ Proof.
           simpl.
           inversion H0; subst; auto.
           SSSSSCase "0 + 1 is a number".
-          apply HTNum. rewrite H12. rewrite Qplus_0_l. unfold not. intros. inversion H6.
+          apply HTNum. rewrite H11. simpl_relation.
         SSSSCase "Num : TNum".
           simpl.
           inversion H0; subst; auto.
           SSSSSCase "n + 1 is zero or a number".
             destruct (n + 1).
-              destruct Qnum.
-                apply HTSub with (s := TZero). constructor. simpl_relation. (* TODO(joe): lookup/remember this *)
-                apply SUnionR. apply SRefl.
-                apply HTSub with (s := TNum). constructor. simpl_relation.
-                apply SUnionL. apply SRefl.
-                apply HTSub with (s := TNum). constructor. simpl_relation.
-                apply SUnionL. apply SRefl.
+              destruct Qnum; solve [
+                apply HTSub with (s := TZero); 
+                  [constructor; simpl_relation | apply SUnionR; apply SRefl]
+                | apply HTSub with (s := TNum); 
+                  [constructor; simpl_relation | apply SUnionL; apply SRefl]].
         SSSSCase "Num : s <= t"; simpl in *.
           remember (ENum n) as e_n.
           induction H6; inversion Heqe_n; subst; try solve [inversion H10]; eauto.
           SSSSSCase "Zero".
-            apply HTSub with (s := TNum). apply HTNum. rewrite H6. rewrite Qplus_0_l. simpl_relation.
+            apply HTSub with (s := TNum). apply HTNum. rewrite H6. simpl_relation. 
             apply delta_subtype with (t1 := TZero) (t2 := t1) (c := add) (W := W0); auto.
           SSSSSCase "Num". 
             apply HTSub with (s := (TUnion TNum TZero)).
             destruct (Qeq_dec n (Qmake (-1) 1)).
               apply HTSub with (s := TZero). apply HTZero. rewrite q. simpl_relation. apply SUnionR. apply SRefl.
-              apply HTSub with (s := TNum). apply HTNum. simpl_relation. apply n0. rewrite <- Qplus_inj_r. rewrite H11.  simpl_relation.
+              apply HTSub with (s := TNum). apply HTNum. intro. apply n0.
+                rewrite <- Qplus_inj_r. rewrite H9.  simpl_relation.
               apply SUnionL. apply SRefl.
               apply delta_subtype with (t1 := TNum) (t2 := t1) (c := add) (W := W0); auto.
       SSSCase "AddLambda".
