@@ -1,14 +1,15 @@
 TO DO:
-[] Define soundness
-  [] Define progress
-  [] Define preservation
-[] Prove Substitution
-[/] Prove 1-step preservation
+[x] Define soundness
+  [x] Define progress
+  [x] Define preservation
+[x] Prove Substitution
+[x] Prove 1-step preservation
   [x] Figure out arithmetrix
-  [] Do application
-[] Prove 1-step progress
-[] Define subtyping
-[] Canonical forms (e.g. Num 0 : T -> TZero <: T)
-[] 5 stupid lemmas for errors that say, e.g.
+  [x] Do application
+[x] Prove 1-step progress
+[x] Define subtyping
+[x] Canonical forms (e.g. Num 0 : T -> TZero <: T)
+  - not needed
+[x] 5 stupid lemmas for errors that say, e.g.
    if TZero <: T and delta_t(div, T, W, T') then div_0 is in W
    ... etc for each one of the errors
